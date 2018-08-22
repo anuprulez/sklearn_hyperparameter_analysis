@@ -1,0 +1,1 @@
+{"decision_function_shape": "ovr", "kernel": "rbf", "degree": 3, "gamma": "auto", "coef0": 0.0, "tol": 0.001, "C": 1.0, "nu": 0.0, "epsilon": 0.0, "shrinking": true, "probability": false, "cache_size": 200, "class_weight": null, "verbose": false, "max_iter": -1, "random_state": null, "class_name": "SVC"}
