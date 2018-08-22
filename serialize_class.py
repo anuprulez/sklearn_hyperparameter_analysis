@@ -1,5 +1,6 @@
 """
-Serialize the classifier object and trained model
+Serialize the classifier object and trained model. It creates
+two files, one JSON for class definition and another for storing learned parameters
 """
 
 import sys
@@ -52,7 +53,7 @@ class SerializeClass:
         y = digits.target
 
         # Split the dataset in two equal parts
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=0)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
 
         # Fit and return the classifier
         classifier.fit(X_train, y_train)
@@ -67,15 +68,18 @@ class SerializeClass:
         with open(self.definition_file, 'w') as definition:
             clf = dict()
             clf_definition = dict()
+            nested_def = dict()
             for item in classifier_members:
-                if item == 'class_name' or item == 'class_path':
+                if item in ['class_name', 'class_path']:
                     clf[item] = classifier_dict[item]
                 else:
-                    if type(classifier_dict[item]).__name__ == 'int32' or type(classifier_dict[item]).__name__ == 'int64':
+                    type_name = type(classifier_dict[item]).__name__
+                    # hack: to serialize int32, int64, float32, float64, convert them to int and float, resepectively
+                    if type_name in ['int32', 'int64']:
                         clf_definition[item] = np.int(classifier_dict[item])
-                    elif type(classifier_dict[item]).__name__ == 'float32' or type(classifier_dict[item]).__name__ == 'float64':
+                    elif type_name in ['float32', 'float64']:
                         clf_definition[item] = np.float(classifier_dict[item])
-                    else:
+                    elif type_name in ['int', 'bool', 'str', 'dict', 'NoneType']:
                         clf_definition[item] = classifier_dict[item]
             clf['definition'] = clf_definition
             definition.write(json.dumps(clf))
@@ -88,9 +92,9 @@ class SerializeClass:
         with h5py.File(self.weights_file, 'w') as h5file:
             for dict_item, val in classifier_dict.items():
                   type_name = type(val).__name__
-                  if val is not None and type_name in ['ndarray']:
+                  if type_name in ['ndarray']:
                       dset = h5file.create_dataset(dict_item, (val.shape), data=np.array(val, dtype=val.dtype.name))
-                  elif type_name in ['float', 'float32', 'float64', 'int', 'int32', 'int64']:
+                  elif type_name in ['float', 'float32', 'float64', 'int', 'int32', 'int64', 'tuple']:
                       dset = h5file.create_dataset(dict_item, data=val)
 
     @classmethod
@@ -98,17 +102,17 @@ class SerializeClass:
         """
         Convert to hdf5
         """
-        clf = SVC()
-        clf = LinearSVC(penalty='l2')
+        clf = SVC(C=2.0, kernel='poly', degree=5)
+        #clf = LinearSVC(loss='hinge', tol=0.00001, C=0.00001)
         #clf = GradientBoostingClassifier()
         #clf = DecisionTreeClassifier()
-        #clf = KNeighborsClassifier()
-        clf = LinearRegression()
-        clf = GaussianNB()
+        #clf = KNeighborsClassifier(n_neighbors=3)
+        #clf = LinearRegression()
+        #clf = GaussianNB()
         classifier, X_test, y_test = self.train_model(clf)
         # Get the attributes of the class object
         classifier_dict = classifier.__dict__
-        classifier_members = [attr for attr in classifier_dict.keys() if not type(classifier_dict[attr]).__name__ == 'ndarray'] #and not attr.startswith("_") and not attr.endswith("_")
+        classifier_members = [attr for attr in classifier_dict.keys() if not type(classifier_dict[attr]).__name__ == 'ndarray']
         classifier_members.append("class_name")
         classifier_members.append("class_path")
         classifier_dict["class_path"] = classifier.__module__ 

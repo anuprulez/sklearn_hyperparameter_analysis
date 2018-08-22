@@ -1,1 +1,1 @@
-{"class_name": "GaussianNB", "class_path": "sklearn.naive_bayes", "definition": {"priors": null}}
+{"class_name": "SVC", "class_path": "sklearn.svm.classes", "definition": {"decision_function_shape": "ovr", "_impl": "c_svc", "kernel": "poly", "degree": 5, "gamma": "auto", "shrinking": true, "probability": false, "cache_size": 200, "class_weight": null, "verbose": false, "max_iter": -1, "random_state": null, "_sparse": false, "fit_status_": 0}}
