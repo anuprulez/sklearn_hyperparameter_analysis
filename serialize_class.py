@@ -12,11 +12,11 @@ import numpy as np
 import sklearn
 from sklearn import datasets
 from sklearn.model_selection import train_test_split
-from sklearn.svm import SVC, LinearSVC
+from sklearn.svm import SVC, LinearSVC, NuSVC
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiTaskLasso, ElasticNet, SGDClassifier
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB
+from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from sklearn.tree import DecisionTreeClassifier
 
 
@@ -102,13 +102,14 @@ class SerializeClass:
         """
         Convert to hdf5
         """
-        clf = SVC(C=2.0, kernel='poly', degree=5)
-        #clf = LinearSVC(loss='hinge', tol=0.00001, C=0.00001)
+        #clf = SVC(C=2.0, kernel='poly', degree=5)
+        clf = LinearSVC(loss='hinge', tol=0.001, C=1)
         #clf = GradientBoostingClassifier()
         #clf = DecisionTreeClassifier()
         #clf = KNeighborsClassifier(n_neighbors=3)
         #clf = LinearRegression()
         #clf = GaussianNB()
+        #clf = NuSVC()
         classifier, X_test, y_test = self.train_model(clf)
         # Get the attributes of the class object
         classifier_dict = classifier.__dict__
@@ -126,8 +127,8 @@ class SerializeClass:
 if __name__ == "__main__":
 
     if len(sys.argv) != 1:
-        print( "Usage: python serialize_hdf5.py" )
-        exit( 1 )
+        print("Usage: python serialize_hdf5.py")
+        exit(1)
     start_time = time.time()
     serialize_clf = SerializeClass()
     X_test, y_test = serialize_clf.serialize_class()
