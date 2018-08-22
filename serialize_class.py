@@ -1,6 +1,5 @@
 """
-Serialize the classifier object and trained model. It creates
-two files, one JSON for class definition and another for storing learned parameters
+Serialize the classifier object and trained model
 """
 
 import sys
@@ -12,11 +11,11 @@ import numpy as np
 import sklearn
 from sklearn import datasets
 from sklearn.model_selection import train_test_split
-from sklearn.svm import SVC, LinearSVC, NuSVC
+from sklearn.svm import SVC, LinearSVC
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiTaskLasso, ElasticNet, SGDClassifier
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
+from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
 
 
@@ -53,7 +52,7 @@ class SerializeClass:
         y = digits.target
 
         # Split the dataset in two equal parts
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=0)
 
         # Fit and return the classifier
         classifier.fit(X_train, y_train)
@@ -74,13 +73,26 @@ class SerializeClass:
                     clf[item] = classifier_dict[item]
                 else:
                     type_name = type(classifier_dict[item]).__name__
-                    # hack: to serialize int32, int64, float32, float64, convert them to int and float, resepectively
                     if type_name in ['int32', 'int64']:
                         clf_definition[item] = np.int(classifier_dict[item])
                     elif type_name in ['float32', 'float64']:
                         clf_definition[item] = np.float(classifier_dict[item])
                     elif type_name in ['int', 'bool', 'str', 'dict', 'NoneType']:
                         clf_definition[item] = classifier_dict[item]
+                    '''else:
+                        cls_learned_params = dict()
+                        for attr in dir(classifier_dict[item]):
+                            if not attr.startswith("_") and not attr.endswith("_"):
+                                try:
+                                    arr = np.asarray(getattr(classifier_dict[item], attr))
+                                    if arr.dtype.name in ['float', 'float32', 'float64', 'int', 'int32', 'int64']:
+                                        print(len(arr), arr, arr.dtype.name)
+                                        cls_learned_params[attr] = np.asarray(getattr(classifier_dict[item], attr))
+                                except:
+                                    pass
+                        nested_keys = ",".join(cls_learned_params.keys())
+                        clf_definition[item] = {'type': 'class', 'module': classifier_dict[item].__class__.__module__, 'class_name': classifier_dict[item].__class__.__name__, "params": nested_keys}
+                        self.convert_to_hdf5(cls_learned_params)'''
             clf['definition'] = clf_definition
             definition.write(json.dumps(clf))
 
@@ -102,14 +114,13 @@ class SerializeClass:
         """
         Convert to hdf5
         """
-        #clf = SVC(C=2.0, kernel='poly', degree=5)
-        clf = LinearSVC(loss='hinge', tol=0.001, C=1)
+        clf = SVC(C=2.0)
+        clf = LinearSVC(penalty='l2')
         #clf = GradientBoostingClassifier()
         #clf = DecisionTreeClassifier()
         #clf = KNeighborsClassifier(n_neighbors=3)
         #clf = LinearRegression()
         #clf = GaussianNB()
-        #clf = NuSVC()
         classifier, X_test, y_test = self.train_model(clf)
         # Get the attributes of the class object
         classifier_dict = classifier.__dict__
@@ -124,11 +135,16 @@ class SerializeClass:
         return X_test, y_test
 
 
+class JsonEncoder(json.JSONEncoder):
+     def default(self, o):
+         return {'__{}__'.format(o.__class__.__name__): o.__dict__}
+
+
 if __name__ == "__main__":
 
     if len(sys.argv) != 1:
-        print("Usage: python serialize_hdf5.py")
-        exit(1)
+        print( "Usage: python serialize_hdf5.py" )
+        exit( 1 )
     start_time = time.time()
     serialize_clf = SerializeClass()
     X_test, y_test = serialize_clf.serialize_class()

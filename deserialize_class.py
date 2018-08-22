@@ -1,7 +1,5 @@
 """
-Deserialize the class object and trained model. Use the 
-class name and its path to import it dynamically. Then, set all 
-its parameters with their respective data
+Deserialize the class object and trained model
 """
 
 import sys
@@ -43,6 +41,16 @@ class DeserializeClass:
         classifier = self.import_module(class_path, class_name)
         classifier_obj = classifier()
         for key, val in parameters.items():
+            '''if type(val).__name__ == 'dict' and 'type' in val:
+                nested_cls = self.import_module(val["module"], val["class_name"])
+                nested_cls_obj = nested_cls()
+                nested_keys = val["params"].split(",")
+                h5file = h5py.File(self.weights_file, 'r')
+                for nes_key in nested_keys:
+                    data = h5file.get(nes_key)[()]
+                    setattr(nested_cls_obj, nes_key, data)
+                setattr(classifier_obj, key, nested_cls_obj)
+            else:'''
             setattr(classifier_obj, key, val)
 
         h5file = h5py.File(self.weights_file, 'r')
