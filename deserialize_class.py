@@ -34,19 +34,12 @@ class DeserializeClass:
         Recreate the model using the class definition and weights
         """
         print("Deserializing...")
-        clf = dict()
-        with open(self.definition_file, 'r') as clf_definition_file:
-            clf = json.loads(clf_definition_file.read())
-        parameters = clf["definition"]
-        class_name = clf["class_name"]
-        class_path = clf["class_path"]
+        h5file = h5py.File(self.weights_file, 'r')
+        class_name = h5file.get("class_name").value
+        class_path = h5file.get("class_path").value
         classifier = self.import_module(class_path, class_name)
         classifier_obj = classifier()
-        for key, val in parameters.items():
-            setattr(classifier_obj, key, val)
-
-        h5file = h5py.File(self.weights_file, 'r')
         for key in h5file.keys():
-            data = h5file.get(key)[()]
+            data = h5file.get(key).value
             setattr(classifier_obj, key, data)
         return classifier_obj

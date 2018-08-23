@@ -51,75 +51,47 @@ class SerializeClass:
         n_samples = len(digits.images)
         X = digits.images.reshape((n_samples, -1))
         y = digits.target
-
         # Split the dataset in two equal parts
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=0)
-
         # Fit and return the classifier
         classifier.fit(X_train, y_train)
         self.compute_prediction_score(classifier, X_test, y_test)
         return classifier, X_test, y_test
 
     @classmethod
-    def convert_to_json(self, classifier_members, classifier_dict):
+    def convert_to_hdf5(self, classifier_dict):
         """
         Convert the definition of a class to JSON
         """
-        with open(self.definition_file, 'w') as definition:
-            clf = dict()
-            clf_definition = dict()
-            nested_def = dict()
-            for item in classifier_members:
-                if item in ['class_name', 'class_path']:
-                    clf[item] = classifier_dict[item]
-                else:
-                    type_name = type(classifier_dict[item]).__name__
-                    # hack: to serialize int32, int64, float32, float64, convert them to int and float, resepectively
-                    if type_name in ['int32', 'int64']:
-                        clf_definition[item] = np.int(classifier_dict[item])
-                    elif type_name in ['float32', 'float64']:
-                        clf_definition[item] = np.float(classifier_dict[item])
-                    elif type_name in ['int', 'bool', 'str', 'dict', 'NoneType']:
-                        clf_definition[item] = classifier_dict[item]
-            clf['definition'] = clf_definition
-            definition.write(json.dumps(clf))
-
-    @classmethod
-    def convert_to_hdf5(self, classifier_dict):
-        """
-        Convert the learned parameters of a class to HDF5
-        """
         with h5py.File(self.weights_file, 'w') as h5file:
             for dict_item, val in classifier_dict.items():
+              if val is not None:
                   type_name = type(val).__name__
+                  print(dict_item, val)
                   if type_name in ['ndarray']:
-                      dset = h5file.create_dataset(dict_item, (val.shape), data=np.array(val, dtype=val.dtype.name))
-                  elif type_name in ['float', 'float32', 'float64', 'int', 'int32', 'int64', 'tuple']:
-                      dset = h5file.create_dataset(dict_item, data=val)
+                      h5file.create_dataset(dict_item, (val.shape), data=np.array(val, dtype=val.dtype.name))
+                  else:
+                      h5file.create_dataset(dict_item, data=val)
 
     @classmethod
     def serialize_class(self):
         """
         Convert to hdf5
         """
-        #clf = SVC(C=2.0, kernel='poly', degree=5)
-        clf = LinearSVC(loss='hinge', tol=0.001, C=1)
+        clf = SVC(C=3.0, kernel='poly', degree=5)
+        #clf = LinearSVC(loss='hinge', tol=0.001, C=1)
         #clf = GradientBoostingClassifier()
         #clf = DecisionTreeClassifier()
         #clf = KNeighborsClassifier(n_neighbors=3)
         #clf = LinearRegression()
         #clf = GaussianNB()
-        #clf = NuSVC()
+        clf = LinearSVC()
         classifier, X_test, y_test = self.train_model(clf)
         # Get the attributes of the class object
         classifier_dict = classifier.__dict__
-        classifier_members = [attr for attr in classifier_dict.keys() if not type(classifier_dict[attr]).__name__ == 'ndarray']
-        classifier_members.append("class_name")
-        classifier_members.append("class_path")
         classifier_dict["class_path"] = classifier.__module__ 
         classifier_dict["class_name"] = classifier.__class__.__name__
         print("Serializing...")
-        self.convert_to_json(classifier_members, classifier_dict)
         self.convert_to_hdf5(classifier_dict)
         return X_test, y_test
 
