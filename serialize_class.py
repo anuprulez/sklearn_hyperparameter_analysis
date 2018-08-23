@@ -67,7 +67,6 @@ class SerializeClass:
             for dict_item, val in classifier_dict.items():
               if val is not None:
                   type_name = type(val).__name__
-                  print(dict_item, val)
                   if type_name in ['ndarray']:
                       h5file.create_dataset(dict_item, (val.shape), data=np.array(val, dtype=val.dtype.name))
                   else:
@@ -78,14 +77,11 @@ class SerializeClass:
         """
         Convert to hdf5
         """
-        clf = SVC(C=3.0, kernel='poly', degree=5)
-        #clf = LinearSVC(loss='hinge', tol=0.001, C=1)
-        #clf = GradientBoostingClassifier()
-        #clf = DecisionTreeClassifier()
-        #clf = KNeighborsClassifier(n_neighbors=3)
+        #clf = SVC(C=3.0, kernel='poly', degree=5)
+        clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression()
         #clf = GaussianNB()
-        clf = LinearSVC()
+        #clf = LinearSVC()
         classifier, X_test, y_test = self.train_model(clf)
         # Get the attributes of the class object
         classifier_dict = classifier.__dict__

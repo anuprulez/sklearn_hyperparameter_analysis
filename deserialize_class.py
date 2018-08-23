@@ -4,11 +4,7 @@ class name and its path to import it dynamically. Then, set all
 its parameters with their respective data
 """
 
-import sys
 import h5py
-import time
-import json
-import numpy as np
 
 
 class DeserializeClass:
