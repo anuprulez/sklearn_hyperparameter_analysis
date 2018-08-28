@@ -1,13 +1,14 @@
 """
-Serialize the classifier object and trained model. It creates
-two files, one JSON for class definition and another for storing learned parameters
+Serialize the classifier object and trained model.
+It creates a model file for storing learned parameters.
 """
 
 import sys
 import h5py
 import time
-import json
 import numpy as np
+import json
+import pickle
 
 import sklearn
 from sklearn import datasets
@@ -15,9 +16,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC, LinearSVC, NuSVC
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiTaskLasso, ElasticNet, SGDClassifier
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from sklearn.tree import DecisionTreeClassifier
+
 
 
 import deserialize_class
@@ -29,7 +31,6 @@ class SerializeClass:
     def __init__(self):
         """ Init method. """
         self.weights_file = "weights.h5"
-        self.definition_file = "definition.json"
 
     @classmethod
     def compute_prediction_score(self, classifier, X_test, y_test):
@@ -56,21 +57,33 @@ class SerializeClass:
         # Fit and return the classifier
         classifier.fit(X_train, y_train)
         self.compute_prediction_score(classifier, X_test, y_test)
-        return classifier, X_test, y_test
-
+        return classifier, X_test, y_test, X_train
+        
     @classmethod
     def convert_to_hdf5(self, classifier_dict):
         """
-        Convert the definition of a class to JSON
+        Convert the definition of a class to HDF5
         """
         with h5py.File(self.weights_file, 'w') as h5file:
             for dict_item, val in classifier_dict.items():
               if val is not None:
                   type_name = type(val).__name__
-                  if type_name in ['ndarray']:
-                      h5file.create_dataset(dict_item, (val.shape), data=np.array(val, dtype=val.dtype.name))
-                  else:
-                      h5file.create_dataset(dict_item, data=val)
+                  try:
+                      if type_name in ['ndarray']:
+                          h5file.create_dataset(dict_item, (val.shape), data=np.array(val, dtype=val.dtype.name))
+                      else:
+                          h5file.create_dataset(dict_item, data=val)
+                      print(dict_item, val)
+                  except:
+                      if val:
+                          print('----------')
+                          nested_obj = dict()
+                          class_name = val.__class__.__name__
+                          train_data = np.array(val.data)
+                          dict_group = h5file.create_group(dict_item)
+                          dict_group.create_dataset("class_name", data=class_name)
+                          dict_group.create_dataset("train_data", (train_data.shape), data=np.array(train_data, dtype=train_data.dtype.name))
+                      continue
 
     @classmethod
     def serialize_class(self):
@@ -78,18 +91,21 @@ class SerializeClass:
         Convert to hdf5
         """
         #clf = SVC(C=3.0, kernel='poly', degree=5)
-        clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
+        #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression()
         #clf = GaussianNB()
-        #clf = LinearSVC()
-        classifier, X_test, y_test = self.train_model(clf)
+        #clf = SGDClassifier(loss='log', learning_rate='optimal', alpha=0.001)
+        clf = KNeighborsClassifier()
+        #clf = RadiusNeighborsClassifier()
+        print(clf)
+        classifier, X_test, y_test, X = self.train_model(clf)
         # Get the attributes of the class object
         classifier_dict = classifier.__dict__
         classifier_dict["class_path"] = classifier.__module__ 
         classifier_dict["class_name"] = classifier.__class__.__name__
         print("Serializing...")
         self.convert_to_hdf5(classifier_dict)
-        return X_test, y_test
+        return X_test, y_test, X
 
 
 if __name__ == "__main__":
@@ -99,8 +115,8 @@ if __name__ == "__main__":
         exit(1)
     start_time = time.time()
     serialize_clf = SerializeClass()
-    X_test, y_test = serialize_clf.serialize_class()
-    deserialize = deserialize_class.DeserializeClass(serialize_clf.weights_file, serialize_clf.definition_file)
+    X_test, y_test, X = serialize_clf.serialize_class()
+    deserialize = deserialize_class.DeserializeClass(serialize_clf.weights_file, X)
     de_classifier = deserialize.deserialize_class()
     serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
