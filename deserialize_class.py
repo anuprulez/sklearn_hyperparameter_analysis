@@ -24,7 +24,6 @@ class DeserializeClass:
         """
         module = importlib.import_module(class_path)
         classifier = getattr(module, class_name)
-        print(classifier)
         return classifier
 
     @classmethod
@@ -40,17 +39,18 @@ class DeserializeClass:
         classifier_obj = classifier()
         for key in h5file.keys():
             if h5file.get(key).__class__.__name__ == 'Group':
-                train_data = h5file.get(key+'/train_data').value
+                train_data = h5file.get(key+'/data').value
                 class_name = h5file.get(key+'/class_name').value
-                class_path_new = class_path.split('.')
-                class_path_new = class_path_new[:len(class_path_new) - 1]
-                class_path_new = ".".join(class_path_new)
-                module_obj = self.import_module(class_path_new, class_name)
-                val = module_obj(train_data)
-                print(key, val)
-                setattr(classifier_obj, key, val)
+                class_path_modules = class_path.split('.')
+                for index, item in enumerate(class_path_modules):
+                    path = ".".join(class_path_modules[:len(class_path_modules) - index])
+                    try:
+                        module_obj = self.import_module(path, class_name)
+                        val = module_obj(train_data)
+                        setattr(classifier_obj, key, val)
+                    except:
+                        continue
             else:
                 data = h5file.get(key).value
                 setattr(classifier_obj, key, data)
-                print(key, data)
         return classifier_obj

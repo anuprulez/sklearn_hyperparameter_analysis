@@ -75,14 +75,15 @@ class SerializeClass:
                           h5file.create_dataset(dict_item, data=val)
                       print(dict_item, val)
                   except:
+                      print(dict_item, val)
                       if val:
-                          print('----------')
-                          nested_obj = dict()
                           class_name = val.__class__.__name__
                           train_data = np.array(val.data)
                           dict_group = h5file.create_group(dict_item)
                           dict_group.create_dataset("class_name", data=class_name)
-                          dict_group.create_dataset("train_data", (train_data.shape), data=np.array(train_data, dtype=train_data.dtype.name))
+                          dict_group.create_dataset("data", (train_data.shape), data=np.array(train_data, dtype=train_data.dtype.name))
+                      else:
+                          h5file.create_dataset(dict_item, data=json.dumps(val))
                       continue
 
     @classmethod
@@ -95,7 +96,7 @@ class SerializeClass:
         #clf = LinearRegression()
         #clf = GaussianNB()
         #clf = SGDClassifier(loss='log', learning_rate='optimal', alpha=0.001)
-        clf = KNeighborsClassifier()
+        clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
         print(clf)
         classifier, X_test, y_test, X = self.train_model(clf)
@@ -116,7 +117,7 @@ if __name__ == "__main__":
     start_time = time.time()
     serialize_clf = SerializeClass()
     X_test, y_test, X = serialize_clf.serialize_class()
-    deserialize = deserialize_class.DeserializeClass(serialize_clf.weights_file, X)
+    deserialize = deserialize_class.DeserializeClass(serialize_clf.weights_file)
     de_classifier = deserialize.deserialize_class()
     serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
