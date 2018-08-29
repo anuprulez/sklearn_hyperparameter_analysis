@@ -8,7 +8,9 @@ import sys
 import h5py
 import importlib
 import json
-
+import hickle
+#import deepdish as dd
+import hdf5_deepdish
 
 class DeserializeClass:
 
@@ -16,6 +18,7 @@ class DeserializeClass:
     def __init__(self, weights_file):
         """ Init method. """
         self.weights_file = weights_file
+        self.weights_file_hickle = "classifier.hkl"
 
     @classmethod
     def import_module(self, class_path, class_name):
@@ -32,7 +35,12 @@ class DeserializeClass:
         Recreate the model using the class definition and weights
         """
         print("Deserializing...")
-        h5file = h5py.File(self.weights_file, 'r')
+        #clf_obj = hickle.load(self.weights_file_hickle)
+        clf_obj = hdf5_deepdish.load(self.weights_file)
+        print(clf_obj)
+        return clf_obj
+
+        '''h5file = h5py.File(self.weights_file, 'r')
         class_name = h5file.get("class_name").value
         class_path = h5file.get("class_path").value
         classifier = self.import_module(class_path, class_name)
@@ -53,4 +61,4 @@ class DeserializeClass:
             else:
                 data = h5file.get(key).value
                 setattr(classifier_obj, key, data)
-        return classifier_obj
+        return classifier_obj'''

@@ -8,18 +8,28 @@ import h5py
 import time
 import numpy as np
 import json
-import pickle
+import hickle
+import h5pickle
+#import deepdish as dd
+import hdf5_deepdish
+from eli5.sklearn import explain_prediction
 
 import sklearn
 from sklearn import datasets
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC, LinearSVC, NuSVC
-from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier
+from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiTaskLasso, ElasticNet, SGDClassifier
 from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from sklearn.tree import DecisionTreeClassifier
+import xgboost
 
+from sklearn import svm
+from sklearn.datasets import samples_generator
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_regression
+from sklearn.pipeline import Pipeline
 
 
 import deserialize_class
@@ -30,7 +40,8 @@ class SerializeClass:
     @classmethod
     def __init__(self):
         """ Init method. """
-        self.weights_file = "weights.h5"
+        self.weights_file = "deepdish_weights_zlib.h5"
+        self.weights_file_hickle = "classifier.hkl"
 
     @classmethod
     def compute_prediction_score(self, classifier, X_test, y_test):
@@ -92,20 +103,29 @@ class SerializeClass:
         Convert to hdf5
         """
         #clf = SVC(C=3.0, kernel='poly', degree=5)
-        #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
+        clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression()
         #clf = GaussianNB()
         #clf = SGDClassifier(loss='log', learning_rate='optimal', alpha=0.001)
-        clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
+        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
-        print(clf)
+        #clf = GradientBoostingClassifier()
+        #clf = ExtraTreesClassifier(random_state=253046471)
+
+        '''anova_filter = SelectKBest(f_regression, k=5)
+        clf = svm.SVC(kernel='linear')
+        anova_svm = Pipeline([('anova', anova_filter), ('svc', clf)])
+        anova_svm.set_params(anova__k=10, svc__C=1)'''
+
         classifier, X_test, y_test, X = self.train_model(clf)
+        print(classifier)
+        hdf5_deepdish.save(self.weights_file, classifier, compression='blosc')
         # Get the attributes of the class object
-        classifier_dict = classifier.__dict__
+        '''classifier_dict = classifier.__dict__
         classifier_dict["class_path"] = classifier.__module__ 
         classifier_dict["class_name"] = classifier.__class__.__name__
         print("Serializing...")
-        self.convert_to_hdf5(classifier_dict)
+        self.convert_to_hdf5(classifier_dict)'''
         return X_test, y_test, X
 
 
