@@ -170,6 +170,7 @@ def _save_pickled(handler, group, level, name=None):
                   DeprecationWarning)
     
     node = handler.create_vlarray(group, name, tables.ObjectAtom())
+    print("ObjctAtom")
     node.append(level)
     #print(node)
     print(handler)
@@ -437,9 +438,12 @@ def _load_nonlink_level(handler, level, pathtable, pathname):
             return val
 
     elif isinstance(level, tables.VLArray):
+        #print("load picked")
         if level.shape == (1,):
+            print("load picked")
             return _load_pickled(level)
         else:
+            print(level)
             return level[:]
 
     elif isinstance(level, tables.Array):
