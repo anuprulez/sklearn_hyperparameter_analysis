@@ -58,8 +58,10 @@ class DeserializeClass:
                     obj = self.import_module(class_path, class_name)
                     for item, value in h5file.get(key + "/attrs").items():
                         setattr(obj, item, value.value)
+                    print(obj)
                     setattr(classifier_obj, key, obj)
             else:
                 data = h5file.get(key).value
                 setattr(classifier_obj, key, data)
+        print(classifier_obj)
         return classifier_obj
