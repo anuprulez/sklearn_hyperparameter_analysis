@@ -18,7 +18,7 @@ from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiT
 from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from sklearn.tree import DecisionTreeClassifier
-import xgboost
+#import xgboost
 
 from sklearn import svm
 from sklearn.datasets import samples_generator
@@ -42,8 +42,6 @@ class SerializeClass:
         """
         Evaluate classifier
         """
-        print(classifier)
-        print(X_test.shape)
         predictions = classifier.predict(X_test)
         match = [1 for x,y in zip(predictions, y_test) if x == y]
         prediction = len(match) / float(len(predictions))
