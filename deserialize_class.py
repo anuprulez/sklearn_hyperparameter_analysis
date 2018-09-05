@@ -56,12 +56,25 @@ class DeserializeClass:
                     class_name = h5file.get(key + "/class_name").value
                     class_path = h5file.get(key + "/path").value
                     obj = self.import_module(class_path, class_name)
+                    obj_dict = dict()
                     for item, value in h5file.get(key + "/attrs").items():
-                        setattr(obj, item, value.value)
-                    print(obj)
-                    setattr(classifier_obj, key, obj)
+                        if class_name == 'Tree':
+                            obj_dict[item] = value.value
+                        else:
+                            setattr(obj, item, value.value)
+                    if class_name == 'Tree':
+                        obj_class = obj(obj_dict["n_features"], obj_dict["n_classes"],  obj_dict["n_outputs"])
+                        print(dir(obj_class))
+                        '''obj_class.max_depth = obj_dict["max_depth"]
+                        obj_class.capacity = obj_dict["capacity"]
+                        obj_class.max_n_classes = obj_dict["max_n_classes"]
+                        obj_class.node_count = obj_dict["node_count"]'''
+                        setattr(classifier_obj, key, obj_class)
+                    else:
+                        setattr(classifier_obj, key, obj)
             else:
                 data = h5file.get(key).value
-                setattr(classifier_obj, key, data)
+                if key not in ["class_name", "class_path"]:
+                   setattr(classifier_obj, key, data)
         print(classifier_obj)
         return classifier_obj
