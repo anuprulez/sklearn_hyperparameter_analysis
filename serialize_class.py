@@ -12,7 +12,7 @@ import json
 import sklearn
 from sklearn import datasets
 from sklearn.model_selection import train_test_split
-from sklearn.svm import SVC, LinearSVC, NuSVC
+from sklearn.svm import SVC, LinearSVC, NuSVC, OneClassSVM, SVR
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, ExtraTreesClassifier, RandomForestClassifier
 from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiTaskLasso, ElasticNet, SGDClassifier, RidgeClassifier
 from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
@@ -71,10 +71,13 @@ class SerializeClass:
         """
         with h5py.File(self.weights_file, 'w') as h5file:
             for dict_item, val in classifier_dict.items():
+              #print(dict_item)
               if val is not None:
                   type_name = type(val).__name__
                   try:
-                      print(dict_item, val)
+                      #print(dict_item, val)
+                      if dict_item == "estimators_":
+                          print(val.shape)
                       if type_name in ['ndarray']:
                           h5file.create_dataset(dict_item, (val.shape), data=np.array(val, dtype=val.dtype.name))
                       else:
@@ -92,7 +95,7 @@ class SerializeClass:
                               for item, item_val in classkeys.items():
                                   dict_group.create_dataset("attrs/" + item, data=item_val)
                           
-                          if "__class__" in dir(val):
+                          '''if "__class__" in dir(val):
                               class_name = type(val).__name__
                               path = val.__class__.__module__
                               
@@ -109,7 +112,7 @@ class SerializeClass:
                                   if key not in state_items:
                                       state_items[key] = value
                               for key, value in state_items.items():
-                                  dict_group.create_dataset("attrs/" + key, data=value)
+                                  dict_group.create_dataset("attrs/" + key, data=value)'''
                           
                           if "data" in dir(val):
                               class_name = val.__class__.__name__
@@ -136,14 +139,16 @@ class SerializeClass:
         #clf = RadiusNeighborsClassifier()
         clf = GradientBoostingClassifier(n_estimators=5)
         #clf = ExtraTreeClassifier()
-        clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
+        #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
-        clf = ExtraTreeRegressor()
+        #clf = ExtraTreeRegressor()
+        #clf = SVR()
         classifier, X_test, y_test, X = self.train_model(clf)
         print(classifier)
         classifier_dict = classifier.__dict__
         classifier_dict["class_path"] = classifier.__module__
         classifier_dict["class_name"] = classifier.__class__.__name__
+        print(classifier_dict)
         print("Serializing...")
         self.convert_to_hdf5(classifier_dict)
         return X_test, y_test, classifier
