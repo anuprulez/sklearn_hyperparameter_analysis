@@ -17,7 +17,7 @@ from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, Ext
 from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiTaskLasso, ElasticNet, SGDClassifier, RidgeClassifier
 from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, ExtraTreeClassifier, ExtraTreeRegressor
 import xgboost
 
 from sklearn import svm
@@ -42,8 +42,6 @@ class SerializeClass:
         """
         Evaluate classifier
         """
-        print(classifier)
-        print(X_test.shape)
         predictions = classifier.predict(X_test)
         match = [1 for x,y in zip(predictions, y_test) if x == y]
         prediction = len(match) / float(len(predictions))
@@ -76,34 +74,45 @@ class SerializeClass:
               if val is not None:
                   type_name = type(val).__name__
                   try:
+                      print(dict_item, val)
                       if type_name in ['ndarray']:
                           h5file.create_dataset(dict_item, (val.shape), data=np.array(val, dtype=val.dtype.name))
                       else:
                           h5file.create_dataset(dict_item, data=val)
                   except:
                       if val:
-                          imp_attrs = [attr for attr in dir(val) if not attr.startswith("__") and not callable(getattr(val, attr))]
                           if "__module__" in dir(val):
-                              print(dict_item, val)
                               class_name = val.__class__.__name__
                               path = val.__module__
                               classkeys = val.__dict__
+                              
                               dict_group = h5file.create_group(dict_item)
                               dict_group.create_dataset("class_name", data=class_name)
                               dict_group.create_dataset("path", data=path)
                               for item, item_val in classkeys.items():
                                   dict_group.create_dataset("attrs/" + item, data=item_val)
-
-                          if "__class__" in dir(val):
+                          
+                          
+                          '''if "__class__" in dir(val):
                               class_name = type(val).__name__
                               path = val.__class__.__module__
+                              
                               dict_group = h5file.create_group(dict_item)
                               dict_group.create_dataset("class_name", data=class_name)
                               dict_group.create_dataset("path", data=path)
+                              state_items = dict()
+                              imp_attrs = [attr for attr in dir(val) if not attr.startswith("__") and not callable(getattr(val, attr))]
                               for key, value in val.__class__.__dict__.items():
                                   if key in imp_attrs:
-                                      dict_group.create_dataset("attrs/" + key, data=eval("val." + key))
-
+                                      state_items[key] = eval("val." + key)
+                              if "__get__state__" in dir(val):
+                                  states = val.__getstate__()
+                                  for key, value in states.items():
+                                      if key not in state_items:
+                                          state_items[key] = value
+                              for key, value in state_items.items():
+                                  dict_group.create_dataset("attrs/" + key, data=value)'''
+                          
                           if "data" in dir(val):
                               class_name = val.__class__.__name__
                               train_data = np.array(val.data)
@@ -127,13 +136,13 @@ class SerializeClass:
         clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         
         #clf = RadiusNeighborsClassifier()
-        #clf = GradientBoostingClassifier()
-        #clf = ExtraTreesClassifier()
-        clf = DecisionTreeClassifier(criterion='entropy')
-        #print(clf.tree_.capacity)
+        clf = GradientBoostingClassifier(n_estimators=5)
+        #clf = ExtraTreeClassifier()
+        #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
+        #clf = DecisionTreeRegressor()
+        #clf = ExtraTreeRegressor()
         classifier, X_test, y_test, X = self.train_model(clf)
-        print(classifier.tree_.capacity)
-        #print(classifier)
+        print(classifier)
         classifier_dict = classifier.__dict__
         classifier_dict["class_path"] = classifier.__module__
         classifier_dict["class_name"] = classifier.__class__.__name__
@@ -152,7 +161,6 @@ if __name__ == "__main__":
     X_test, y_test, classifier = serialize_clf.serialize_class()
     deserialize = deserialize_class.DeserializeClass(serialize_clf.weights_file)
     de_classifier = deserialize.deserialize_class()
-    print(classifier == de_classifier)
     serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
     print ("Program finished in %s seconds" % str( end_time - start_time ))
