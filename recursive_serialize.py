@@ -96,15 +96,18 @@ class SerializeClass:
                         else:
                             h5file.create_dataset(dict_item, data=val)
                     except:
+                        print(dict_item, val)
                         if 'shape' in dir(val):
                             shape = val.shape
                             dict_group = h5file.create_group(dict_item)
                             dict_group.create_dataset("shape", data=shape)
                             estimator = val[0][0]
                             estimator_state = estimator.__getstate__()
+                            print(dir(estimator))
+                            
                             estimator_dict = dict()
                             estimator_dict = self.convert_obj_to_dict(estimator_state)
-                            print(estimator_dict)
+                            #print(estimator_dict)
                             for item, value in estimator_dict.items():
                                 if type(value) is dict:
                                     for k, v in value.items():
@@ -161,11 +164,51 @@ class SerializeClass:
         #clf = SVR()
         classifier, X_test, y_test, X = self.train_model(clf)
         get_states = classifier.__getstate__()
+        #print(dir(classifier))
+        #print(classifier.__reduce__())
+        #klass, args, state = classifier.__reduce__()
+        #print(dir(klass))
+        #print(klass)
+        #print(args[0].__module__)
+        #recur_dict = self.recursive_dict(args, state)
+        #print(recur_dict)
+        #print("  ")
+        #print(classifier.__reduce_ex__())
+        #print("  ")
+        #print(get_states)
         get_states["class_name"] = classifier.__class__.__name__
         get_states["class_path"] = classifier.__module__
         print("Serializing...")
         self.convert_to_hdf5(get_states)
         return X_test, y_test, classifier
+        
+    @classmethod
+    def recursive_dict(self, args, state, recur_dict={}):
+        print(args)
+        try:
+            recur_dict["class_name"] = args[0].__name__
+            recur_dict["path"] = args[0].__module__
+        except:
+            recur_dict["class_name"] = args.__name__
+            recur_dict["path"] = args.__module__
+        print(type(state).__name__)
+        if type(state).__name__ not in ['str', 'float', 'bool', 'NoneType', 'int', 'ndarray', 'tuple']:
+            for key, val in state.items():
+                if type(val).__name__ not in ['str', 'float', 'bool', 'NoneType', 'int', 'ndarray', 'tuple']:
+                    '''print(dir(val))
+                    print(val.__reduce_ex__())
+                    args, st = val.__reduce_ex__()
+                    recur_dict[key] = dict()
+                    recur_dict[key]["class_name"] = val.__class__.__name__
+                    recur_dict[key]["path"] = val.__module__'''
+                    #print(type(val).__name__)
+                    #new_state = val.__getstate__()
+                    recur_dict[key] = dict()
+                    klass, args, st = val.__reduce__()
+                    self.recursive_dict(args, st, recur_dict[key])
+                else:
+                    recur_dict[key] = val
+        return recur_dict
 
 
 class DeserializeClass:
@@ -204,15 +247,15 @@ class DeserializeClass:
                     print(shape)
                     for item, value in h5file.get(key).items():
                         try:
+                            print(item, value.value)
                             setattr(classifier_obj, item, value.value)
                         except:
                             continue
                     for item, value in h5file.get(key + "/attrs").items():
                         #if type(value) is dict:
+                        print("----------")
                         for k, v in h5file.get(key + "/attrs/" + item).items():
-                            print(k, v)
-                        #else:
-                         
+                            print(k, v.value)
                 elif key + "/data" in h5file:
                     train_data = h5file.get(key+'/data').value
                     class_name = h5file.get(key+'/class_name').value
