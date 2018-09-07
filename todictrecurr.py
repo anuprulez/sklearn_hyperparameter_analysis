@@ -69,7 +69,8 @@ class SerializeClass:
             recur_dict["path"] = cls_object.__module__
         else:
             recur_dict["path"] = cls_object.__class__.__module__
-            
+        if "data" in dir(cls_object):
+            recur_dict["data"] = np.array(cls_object.data)
         if "__getstate__" in dir(cls_object):
             cls_object_states = cls_object.__getstate__()
             type_name = type(cls_object_states).__name__
@@ -85,12 +86,28 @@ class SerializeClass:
                                recur_dict[key]["shape"] = len(val)
                                estimator = val[0]
                             self.recursive_dict(estimator, recur_dict[key])
+                        elif key == "tree_":
+                            state_items = dict()
+                            imp_attrs = [attr for attr in dir(val) if not attr.startswith("__") and not callable(getattr(val, attr))]
+                            for k, v in val.__class__.__dict__.items():
+                                if k in imp_attrs:
+                                    state_items[k] = eval("val." + k)
+                            states = val.__getstate__()
+                            for k, v in states.items():
+                                if k not in state_items:
+                                    state_items[k] = v
+                            state_items["class_name"] = val.__class__.__name__
+                            if "__module__" in dir(val):
+                                state_items["path"] = val.__module__
+                            else:
+                                state_items["path"] = val.__class__.__module__
+                            recur_dict[key] = state_items
+                        elif key == "estimators_features_":
+                            recur_dict[key] = val
                         else:
                             self.recursive_dict(val, recur_dict[key])
-                        if key == "estimators_features_":
-                            recur_dict[key] = val
                     else:
-                        if type(val).__name__ in ['tuple']:
+                        if type(val).__name__ is 'tuple':
                             try:
                                 val_getstate = val.__getstate__()
                                 recur_dict[key][val_getstate[0]] = val_getstate[1]
@@ -110,49 +127,125 @@ class SerializeClass:
                             else:
                                 recur_dict[key] = val
         return recur_dict
+        
+    @classmethod
+    def save_hdf5(self, dictionary):
+        """
+        Save the dictionary to hdf5 file
+        """
+        with h5py.File(self.weights_file, 'w') as h5file:
+            for key, value in dictionary.items():
+                type_name = type(value).__name__
+                if not type_name in ['None', 'NoneType']:
+                    if type_name in ['ndarray']:
+                        h5file.create_dataset(key, (value.shape), data=np.array(value, dtype=value.dtype.name))
+                    else:
+                        try:
+                            h5file.create_dataset(key, data=json.dumps(value))
+                        except:
+                            dict_group = h5file.create_group(key)
+                            for k, v in value.items():
+                                tn = type(v).__name__
+                                if tn in ['ndarray']:
+                                    try:
+                                        if k == "nodes":
+                                            dict_group.create_dataset(k, (v.shape), data=v)
+                                        else:
+                                            dict_group.create_dataset(k, (v.shape), data=np.array(v, dtype=v.dtype.name))
+                                    except Exception as exp:
+                                        continue
+                                else:
+                                    dict_group.create_dataset(k, data=v)
 
     @classmethod
     def serialize_class(self):
         """
         Convert to hdf5
         """
-        clf = SVC(C=3.0, kernel='poly', degree=5)
-        clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
-        clf = LinearRegression()
-        clf = GaussianNB()
-        clf = SGDClassifier(loss='log', learning_rate='optimal', alpha=0.0001)
-        clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
+        #clf = SVC(C=3.0, kernel='poly', degree=5)
+        #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
+        #clf = LinearRegression()
+        #clf = GaussianNB()
+        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         
         #clf = RadiusNeighborsClassifier()
         #clf = GradientBoostingClassifier(n_estimators=1)
-        #clf = ExtraTreeClassifier()
+        clf = ExtraTreeClassifier()
         clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
-        #clf = GradientBoostingClassifier(n_estimators=1)
+        clf = GradientBoostingClassifier(n_estimators=1)
         #clf = SVR()
         #clf = AdaBoostClassifier()
         #clf = BaggingClassifier()
         #clf = ExtraTreesClassifier()
         classifier, X_test, y_test, X = self.train_model(clf)
+        print(classifier)
         get_states = classifier.__getstate__()
-        #print(dir(classifier))
-        #print(classifier.__reduce__())
-        #klass, args, state = classifier.__reduce__()
-        #print(dir(klass))
-        #print(klass)
-        #print(args[0].__module__)
-        recur_dict = self.recursive_dict(classifier)
-        print(recur_dict)
-        #print("  ")
-        #print(classifier.__reduce_ex__())
-        #print("  ")
-        #print(get_states)
-        '''get_states["class_name"] = classifier.__class__.__name__
-        get_states["class_path"] = classifier.__module__
+        classifier_dict = self.recursive_dict(classifier)
+        print(classifier_dict)
         print("Serializing...")
-        self.convert_to_hdf5(get_states)'''
+        self.save_hdf5(classifier_dict)
         return X_test, y_test, classifier
+
+
+class DeserializeClass:
+
+    @classmethod
+    def __init__(self, weights_file):
+        """ Init method. """
+        self.weights_file = weights_file
+
+    @classmethod
+    def import_module(self, class_path, class_name):
+        """
+        Import a module dynamically
+        """
+        module = importlib.import_module(class_path)
+        classifier = getattr(module, class_name)
+        return classifier
+
+    @classmethod
+    def deserialize_class(self):
+        """
+        Recreate the model using the class definition and weights
+        """
+        print("Deserializing...")
+
+        h5file = h5py.File(self.weights_file, 'r')
+        class_name = json.loads(h5file.get("class_name").value)
+        class_path = json.loads(h5file.get("path").value)
+        classifier = self.import_module(class_path, class_name)
+        classifier_obj = classifier()
+        for key in h5file.keys():
+            if h5file.get(key).__class__.__name__ == 'Group':
+                class_name = h5file.get(key + "/class_name").value
+                class_path = h5file.get(key + "/path").value
+                new_object = self.import_module(class_path, class_name)
+                if key + "/data" in h5file:
+                    data = h5file.get(key+'/data').value
+                    obj = new_object(data)
+                    setattr(classifier_obj, key, obj)
+                else:
+                    if class_name == 'Tree':
+                        obj_dict = dict()
+                        for k, v in h5file.get(key).items():
+                            obj_dict[k] = v.value
+                        obj_class = new_object(obj_dict["n_features"], obj_dict["n_classes"],  obj_dict["n_outputs"])
+                        obj_class.__setstate__(obj_dict)
+                        setattr(classifier_obj, key, obj_class)
+            else:
+                value = h5file.get(key).value
+                value_type = type(value).__name__
+                if value_type in ['ndarray']:
+                    setattr(classifier_obj, key, value)
+                elif value_type in ['str']:
+                    value_loads = json.loads(value)
+                    type_loads = type(value_loads).__name__
+                    setattr(classifier_obj, key, value_loads)
+        print(classifier_obj)
+        return classifier_obj
 
 
 if __name__ == "__main__":
@@ -163,5 +256,8 @@ if __name__ == "__main__":
     start_time = time.time()
     serialize_clf = SerializeClass()
     X_test, y_test, classifier = serialize_clf.serialize_class()
+    deserialize = DeserializeClass(serialize_clf.weights_file)
+    de_classifier = deserialize.deserialize_class()
+    serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
     print ("Program finished in %s seconds" % str( end_time - start_time ))

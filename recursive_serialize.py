@@ -153,11 +153,11 @@ class SerializeClass:
         #clf = LinearRegression()
         #clf = GaussianNB()
         #clf = SGDClassifier(loss='log', learning_rate='optimal', alpha=0.0001)
-        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
+        clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         
         #clf = RadiusNeighborsClassifier()
-        clf = GradientBoostingClassifier(n_estimators=1)
-        #clf = ExtraTreeClassifier()
+        #clf = GradientBoostingClassifier(n_estimators=1)
+        clf = ExtraTreeClassifier()
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
@@ -279,6 +279,7 @@ class DeserializeClass:
                         else:
                             setattr(obj, item, value.value)
                     if class_name == 'Tree':
+                        print(obj_dict["n_features"], type(obj_dict["n_classes"]),  obj_dict["n_outputs"])
                         obj_class = obj(obj_dict["n_features"], obj_dict["n_classes"],  obj_dict["n_outputs"])
                         obj_class.__setstate__(obj_dict)
                         setattr(classifier_obj, key, obj_class)
