@@ -133,49 +133,49 @@ class SerializeClass:
         """
         Save the dictionary to hdf5 file
         """
-        with h5py.File(self.weights_file, 'w') as h5file:
-            def recursive_save(dictionary, h5file_obj=None):
-                for key, value in dictionary.items():
-                    type_name = type(value).__name__
-                    if not type_name in ['None', 'NoneType']:
-                        try:
-                            if type_name in ['ndarray']:
-                                if key == "nodes":
-                                    h5file_obj.create_dataset(key, (value.shape), data=value)
-                                else:
-                                    h5file_obj.create_dataset(key, (value.shape), data=np.array(value, dtype=value.dtype.name))
-                            elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'bool']:
-                                h5file_obj.create_dataset(key, data=value)
-                            elif type_name in ['dict']:
-                                dict_group = h5file_obj.create_group(key)
-                                recursive_save(value, dict_group)
-                        except:
-                            continue
-            recursive_save(dictionary, h5file)
+        h5file = h5py.File(self.weights_file, 'w')
+        def recursive_save(dictionary, h5file_obj):
+            for key, value in dictionary.items():
+                type_name = type(value).__name__
+                if not type_name in ['None', 'NoneType']:
+                    try:
+                        if type_name in ['ndarray']:
+                            if key == "nodes":
+                                h5file_obj.create_dataset(key, (value.shape), data=value)
+                            else:
+                                h5file_obj.create_dataset(key, (value.shape), data=np.array(value, dtype=value.dtype.name))
+                        elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'bool']:
+                            h5file_obj.create_dataset(key, data=value)
+                        elif type_name in ['dict']:
+                            dict_group = h5file_obj.create_group(key)
+                            recursive_save(value, dict_group)
+                    except:
+                        continue
+        recursive_save(dictionary, h5file)
 
     @classmethod
     def serialize_class(self):
         """
         Convert to hdf5
         """
-        #clf = SVC(C=3.0, kernel='poly', degree=5)
+        clf = SVC(C=3.0, kernel='poly', degree=5)
         #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression()
         #clf = GaussianNB()
-        clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
         #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         
         #clf = RadiusNeighborsClassifier()
-        #clf = GradientBoostingClassifier(n_estimators=1)
+        clf = GradientBoostingClassifier(n_estimators=1)
         #clf = ExtraTreeClassifier()
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
         #clf = GradientBoostingClassifier(n_estimators=1)
         #clf = SVR()
-        clf = AdaBoostClassifier()
+        #clf = AdaBoostClassifier()
         #clf = BaggingClassifier()
-        #clf = ExtraTreesClassifier()
+        clf = ExtraTreesClassifier()
         classifier, X_test, y_test, X = self.train_model(clf)
         get_states = classifier.__getstate__()
         classifier_dict = self.recursive_dict(classifier)
@@ -199,8 +199,74 @@ class DeserializeClass:
         module = importlib.import_module(class_path)
         classifier = getattr(module, class_name)
         return classifier
-
+        
     @classmethod
+    def deserialize_class(self):
+        """
+        Read the hdf5 file recursively
+        """
+        print("Deserializing...")
+        h5file = h5py.File(self.weights_file, 'r')
+        def recursive_read(h5_obj):
+            cls_name = h5_obj.get("class_name").value
+            cls_path = h5_obj.get("path").value
+            classifier = self.import_module(cls_path, cls_name)
+            classifier_obj = classifier()
+            for key in h5_obj.keys():
+                print(key, h5_obj.get(key))
+                if h5_obj.get(key).__class__.__name__ == 'Group':
+                    if key == "estimators_":
+                        class_name = h5_obj.get(key + "/class_name").value
+                        class_path = h5_obj.get(key + "/path").value
+                        new_estimator_object = self.import_module(class_path, class_name)
+                        shape = h5_obj.get(key + "/shape").value
+                        for k, v in h5_obj.get(key).items():
+                            #print(key, k, v)
+                            if k == "tree_":
+                                tree_class_name = h5_obj.get(key + "/" + k + "/class_name").value
+                                tree_class_path = h5_obj.get(key + "/" + k + "/path").value
+                                new_tree_object = self.import_module(tree_class_path, tree_class_name)
+                                obj_dict = dict()
+                                for tree_item, tree_val in h5_obj.get(key + '/tree_').items():
+                                    if tree_item not in ["class_name", "path", "shape"]:
+                                        obj_dict[tree_item] = tree_val.value
+                                obj_class = new_tree_object(obj_dict["n_features"], obj_dict["n_classes"],  obj_dict["n_outputs"])
+                                obj_class.__setstate__(obj_dict)
+                                setattr(new_estimator_object, k, obj_class)
+                            else:
+                                if k not in ["class_name", "path", "shape"]:
+                                    setattr(new_estimator_object, k, v)
+                            all_estimator = np.repeat(new_estimator_object, shape)
+                            setattr(classifier_obj, key, all_estimator)
+                    elif key in ["tree_", "_tree"]:
+                        tree_class_name = h5_obj.get(key + "/class_name").value
+                        tree_class_path = h5_obj.get(key + "/path").value
+                        new_tree_object = self.import_module(tree_class_path, tree_class_name)
+                        if key + "/data" in h5file:
+                            data = h5file.get(key + '/data').value
+                            obj = new_tree_object(data)
+                            setattr(classifier_obj, key, obj)
+                        else:
+                            obj_dict = dict()
+                            for tree_item, tree_val in h5_obj.get(key).items():
+                                if tree_item not in ["class_name", "path", "shape"]:
+                                    obj_dict[tree_item] = tree_val.value
+                            obj_class = new_tree_object(obj_dict["n_features"], obj_dict["n_classes"],  obj_dict["n_outputs"])
+                            obj_class.__setstate__(obj_dict)
+                            setattr(classifier_obj, key, obj_class)
+                else:
+                    value = h5_obj.get(key).value
+                    value_type = type(value).__name__
+                    if value_type in ['ndarray']:
+                        setattr(classifier_obj, key, value)
+                    else:
+                        setattr(classifier_obj, key, value)
+            return classifier_obj
+        classifier_obj = recursive_read(h5file)
+        print(classifier_obj)
+        return classifier_obj
+        
+    '''@classmethod
     def deserialize_class(self):
         """
         Recreate the model using the class definition and weights
@@ -214,6 +280,8 @@ class DeserializeClass:
         classifier_obj = classifier()
         for key in h5file.keys():
             if h5file.get(key).__class__.__name__ == 'Group':
+                if key == "estimators_":
+                    print(key, h5file.get(key))
                 class_name = h5file.get(key + "/class_name").value
                 class_path = h5file.get(key + "/path").value
                 new_object = self.import_module(class_path, class_name)
@@ -237,7 +305,7 @@ class DeserializeClass:
                 else:
                     setattr(classifier_obj, key, value)
         print(classifier_obj)
-        return classifier_obj
+        return classifier_obj'''
 
 
 if __name__ == "__main__":
