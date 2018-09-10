@@ -134,28 +134,39 @@ class SerializeClass:
         Save the dictionary to hdf5 file
         """
         with h5py.File(self.weights_file, 'w') as h5file:
-            for key, value in dictionary.items():
-                type_name = type(value).__name__
-                if not type_name in ['None', 'NoneType']:
-                    if type_name in ['ndarray']:
-                        h5file.create_dataset(key, (value.shape), data=np.array(value, dtype=value.dtype.name))
-                    else:
+            def recursive_save(dictionary, h5file_obj=None):
+                for key, value in dictionary.items():
+                    type_name = type(value).__name__
+                    if not type_name in ['None', 'NoneType']:
+                        #print(key, type_name, value)
                         try:
-                            h5file.create_dataset(key, data=json.dumps(value))
+                            if type_name in ['ndarray']:
+                                h5file_obj.create_dataset(key, (value.shape), data=np.array(value, dtype=value.dtype.name))
+                            elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'bool']:
+                                h5file_obj.create_dataset(key, data=value)
+                            elif type_name in ['dict']:
+                                dict_group = h5file_obj.create_group(key)
+                                print(key, value)
+                                recursive_save(value, dict_group)
                         except:
-                            dict_group = h5file.create_group(key)
-                            for k, v in value.items():
-                                tn = type(v).__name__
-                                if tn in ['ndarray']:
-                                    try:
-                                        if k == "nodes":
-                                            dict_group.create_dataset(k, (v.shape), data=v)
-                                        else:
-                                            dict_group.create_dataset(k, (v.shape), data=np.array(v, dtype=v.dtype.name))
-                                    except Exception as exp:
-                                        continue
-                                else:
-                                    dict_group.create_dataset(k, data=v)
+                            continue
+                            '''try:
+                                h5file.create_dataset(key, data=json.dumps(value))
+                            except:
+                                dict_group = h5file.create_group(key)
+                                for k, v in value.items():
+                                    tn = type(v).__name__
+                                    if tn in ['ndarray']:
+                                        try:
+                                            if k == "nodes":
+                                                dict_group.create_dataset(k, (v.shape), data=v)
+                                            else:
+                                                dict_group.create_dataset(k, (v.shape), data=np.array(v, dtype=v.dtype.name))
+                                        except Exception as exp:
+                                            continue
+                                    else:
+                                        dict_group.create_dataset(k, data=v)'''
+            recursive_save(dictionary, h5file)
 
     @classmethod
     def serialize_class(self):
@@ -166,25 +177,23 @@ class SerializeClass:
         #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression()
         #clf = GaussianNB()
-        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
         #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         
         #clf = RadiusNeighborsClassifier()
         #clf = GradientBoostingClassifier(n_estimators=1)
-        clf = ExtraTreeClassifier()
-        clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
-        #clf = DecisionTreeRegressor()
+        #clf = ExtraTreeClassifier()
+        #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
+        clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
-        clf = GradientBoostingClassifier(n_estimators=1)
+        #clf = GradientBoostingClassifier(n_estimators=1)
         #clf = SVR()
         #clf = AdaBoostClassifier()
         #clf = BaggingClassifier()
         #clf = ExtraTreesClassifier()
         classifier, X_test, y_test, X = self.train_model(clf)
-        print(classifier)
         get_states = classifier.__getstate__()
         classifier_dict = self.recursive_dict(classifier)
-        print(classifier_dict)
         print("Serializing...")
         self.save_hdf5(classifier_dict)
         return X_test, y_test, classifier
@@ -214,8 +223,8 @@ class DeserializeClass:
         print("Deserializing...")
 
         h5file = h5py.File(self.weights_file, 'r')
-        class_name = json.loads(h5file.get("class_name").value)
-        class_path = json.loads(h5file.get("path").value)
+        class_name = h5file.get("class_name").value
+        class_path = h5file.get("path").value
         classifier = self.import_module(class_path, class_name)
         classifier_obj = classifier()
         for key in h5file.keys():
@@ -232,6 +241,7 @@ class DeserializeClass:
                         obj_dict = dict()
                         for k, v in h5file.get(key).items():
                             obj_dict[k] = v.value
+                        print(obj_dict)
                         obj_class = new_object(obj_dict["n_features"], obj_dict["n_classes"],  obj_dict["n_outputs"])
                         obj_class.__setstate__(obj_dict)
                         setattr(classifier_obj, key, obj_class)
@@ -240,10 +250,8 @@ class DeserializeClass:
                 value_type = type(value).__name__
                 if value_type in ['ndarray']:
                     setattr(classifier_obj, key, value)
-                elif value_type in ['str']:
-                    value_loads = json.loads(value)
-                    type_loads = type(value_loads).__name__
-                    setattr(classifier_obj, key, value_loads)
+                else:
+                    setattr(classifier_obj, key, value)
         print(classifier_obj)
         return classifier_obj
 
@@ -251,7 +259,7 @@ class DeserializeClass:
 if __name__ == "__main__":
 
     if len(sys.argv) != 1:
-        print("Usage: python serialize_hdf5.py")
+        print("Usage: python todictrecurr.py")
         exit(1)
     start_time = time.time()
     serialize_clf = SerializeClass()
