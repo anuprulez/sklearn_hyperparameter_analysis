@@ -138,34 +138,19 @@ class SerializeClass:
                 for key, value in dictionary.items():
                     type_name = type(value).__name__
                     if not type_name in ['None', 'NoneType']:
-                        #print(key, type_name, value)
                         try:
                             if type_name in ['ndarray']:
-                                h5file_obj.create_dataset(key, (value.shape), data=np.array(value, dtype=value.dtype.name))
+                                if key == "nodes":
+                                    h5file_obj.create_dataset(key, (value.shape), data=value)
+                                else:
+                                    h5file_obj.create_dataset(key, (value.shape), data=np.array(value, dtype=value.dtype.name))
                             elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'bool']:
                                 h5file_obj.create_dataset(key, data=value)
                             elif type_name in ['dict']:
                                 dict_group = h5file_obj.create_group(key)
-                                print(key, value)
                                 recursive_save(value, dict_group)
                         except:
                             continue
-                            '''try:
-                                h5file.create_dataset(key, data=json.dumps(value))
-                            except:
-                                dict_group = h5file.create_group(key)
-                                for k, v in value.items():
-                                    tn = type(v).__name__
-                                    if tn in ['ndarray']:
-                                        try:
-                                            if k == "nodes":
-                                                dict_group.create_dataset(k, (v.shape), data=v)
-                                            else:
-                                                dict_group.create_dataset(k, (v.shape), data=np.array(v, dtype=v.dtype.name))
-                                        except Exception as exp:
-                                            continue
-                                    else:
-                                        dict_group.create_dataset(k, data=v)'''
             recursive_save(dictionary, h5file)
 
     @classmethod
@@ -184,11 +169,11 @@ class SerializeClass:
         #clf = GradientBoostingClassifier(n_estimators=1)
         #clf = ExtraTreeClassifier()
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
-        clf = DecisionTreeRegressor()
+        #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
         #clf = GradientBoostingClassifier(n_estimators=1)
         #clf = SVR()
-        #clf = AdaBoostClassifier()
+        clf = AdaBoostClassifier()
         #clf = BaggingClassifier()
         #clf = ExtraTreesClassifier()
         classifier, X_test, y_test, X = self.train_model(clf)
@@ -241,7 +226,6 @@ class DeserializeClass:
                         obj_dict = dict()
                         for k, v in h5file.get(key).items():
                             obj_dict[k] = v.value
-                        print(obj_dict)
                         obj_class = new_object(obj_dict["n_features"], obj_dict["n_classes"],  obj_dict["n_outputs"])
                         obj_class.__setstate__(obj_dict)
                         setattr(classifier_obj, key, obj_class)
