@@ -27,6 +27,8 @@ from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
 from sklearn.pipeline import Pipeline
 import importlib
+import jsonpickler
+
 
 class SerializeClass:
 
@@ -41,6 +43,7 @@ class SerializeClass:
         """
         Evaluate classifier
         """
+        print(classifier.estimators_)
         predictions = classifier.predict(X_test)
         match = [1 for x,y in zip(predictions, y_test) if x == y]
         prediction = len(match) / float(len(predictions))
@@ -85,8 +88,9 @@ class SerializeClass:
                                 estimator = val[0][0]
                             else:
                                recur_dict[key]["shape"] = len(val)
-                               estimator = val[0]
-                            self.recursive_dict(estimator, recur_dict[key])
+                               estimators = val
+                            for esmtr in estimators:
+                                 self.recursive_dict(esmtr, recur_dict[key])
                         elif key == "tree_":
                             state_items = dict()
                             imp_attrs = [attr for attr in dir(val) if not attr.startswith("__") and not callable(getattr(val, attr))]
@@ -169,16 +173,22 @@ class SerializeClass:
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
-        clf = GradientBoostingClassifier(n_estimators=1)
+        #clf = GradientBoostingClassifier(n_estimators=1)
+        
         #clf = SVR()
         #clf = AdaBoostClassifier()
         #clf = AdaBoostRegressor()
         #clf = BaggingClassifier()
         #clf = BaggingRegressor()
-        #clf = ExtraTreesClassifier(n_estimators=100)
-        clf = ExtraTreesRegressor()
+        clf = ExtraTreesClassifier(n_estimators=100)
+        #clf = ExtraTreesRegressor()
         #clf = RandomForestClassifier()
         classifier, X_test, y_test, X = self.train_model(clf)
+        #se_model = jsonpickler.dump(classifier)
+        #print(se_model)
+        #de_model = jsonpickler.load(se_model)
+        #print(de_model)
+        #return
         get_states = classifier.__getstate__()
         classifier_dict = self.recursive_dict(classifier)
         print("Serializing...")
