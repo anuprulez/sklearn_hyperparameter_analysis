@@ -27,6 +27,7 @@ from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
 from sklearn.pipeline import Pipeline
 import importlib
+from deepdish import io
 import jsonpickler
 
 
@@ -70,39 +71,36 @@ class SerializeClass:
         Save the dictionary to hdf5 file
         """
         se_model = jsonpickler.dump(model)
+        #io.save(self.model_file, se_model)
         print(se_model)
         print("--------------")
         h5file = h5py.File(self.model_file, 'w')
-        def recursive_save_model(h5file_obj, intermediate_obj):
-            for model_key, model_value in intermediate_obj.items():
+        def recursive_save_model(h5file_obj, dictionary):
+            for model_key, model_value in dictionary.items():
                 type_name = type(model_value).__name__
                 #print(model_key, type_name)
                 try:
-                    if type_name in ['ndarray', 'numpy_ndarray']:
-                        print(model_key, type_name)
+                    if type_name in ['ndarray']:
                         h5file_obj.create_dataset(model_key, (model_value.shape), data=model_value)
-                    elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'bool', 'list', 'NoneType', 'None']:
-                        #print(model_key, type_name, model_value)
-                        if model_key == "_aslist_":
+                    elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'bool', 'list', 'None', 'NoneType']:
+                        if model_key == "_aslist_" or model_key =="_keys_" or type_name in ['None', 'NoneType']:
                             h5file_obj.create_dataset(model_key, data=json.dumps(model_value))
                         else:
                             h5file_obj.create_dataset(model_key, data=model_value)
                     elif type_name in ['dict']:
-                        #print(model_key, type_name)
                         dict_group = h5file_obj.create_group(model_key)
                         recursive_save_model(dict_group, model_value)
                 except Exception as exp:
-                    print(model_key, model_value, exp)
+                    #print(model_key, exp)
                     continue
         recursive_save_model(h5file, se_model)
-            
-        
+
     @classmethod
     def serialize_class(self):
         """
         Convert to hdf5
         """
-        #clf = SVC(C=3.0, kernel='poly', degree=5)
+        clf = SVC(C=3.0, kernel='poly', degree=5)
         clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression()
         #clf = GaussianNB()
@@ -127,6 +125,7 @@ class SerializeClass:
         classifier, X_test, y_test, X = self.train_model(clf)
         print("Serializing...")
         self.save_model(classifier)
+        
         return X_test, y_test, classifier
 
 
@@ -143,7 +142,10 @@ class DeserializeClass:
         Read the hdf5 file recursively
         """
         print("Deserializing...")
-        model = dict()
+        '''model = io.load(self.model_file)
+        unloaded_model = jsonpickler.load(model)
+        return unloaded_model'''
+        model_obj = dict()
         h5file = h5py.File(self.model_file, 'r')
         def recursive_load_model(h5file_obj, model_obj):
             for key in h5file_obj.keys():
@@ -151,15 +153,19 @@ class DeserializeClass:
                     model_obj[key] = dict()
                     recursive_load_model(h5file_obj[key], model_obj[key])
                 else:
-                    #print(key, h5file_obj[key].value)
-                    if key == "_aslist_":
-                        model_obj[key] = json.loads(h5file_obj.get(key).value)
-                    else:
-                        model_obj[key] = h5file_obj.get(key).value
+                    try:
+                        key_value = h5file_obj.get(key).value
+                        if key == "_aslist_" or key == "_keys_" or key_value == 'null':
+                            model_obj[key] = json.loads(key_value)
+                        else:
+                            model_obj[key] = key_value
+                    except:
+                        continue
             return model_obj
-        model_obj = recursive_load_model(h5file, model)
-        #print(model_obj)
-        unloaded_model = jsonpickler.load(model_obj)
+        reconstructed_model = recursive_load_model(h5file, model_obj)
+        print(reconstructed_model)
+        unloaded_model = jsonpickler.load(reconstructed_model)
+        print(model_object)
         return unloaded_model
         
 

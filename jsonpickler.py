@@ -133,7 +133,7 @@ class ModelToDict:
 
     def save_dict(self, obj):
         newdict = {}
-        _keys_ = obj.keys()
+        _keys_ = list(obj.keys())
         newdict['_keys_'] = _keys_
         for k in _keys_:
             newdict[k] = self.save(obj[k])
@@ -230,7 +230,6 @@ class DictToModel:
         f = dispatch.get(t)
         if f:
             return f(self, data)
-
 
     dispatch = {}
 
@@ -368,19 +367,3 @@ def dump(obj):
 
 def load(data):
     return DictToModel().load(data)
-
-
-if __name__ == "__main__":
-    with open('./test-data/grad_Boos_classifier.pickle', 'rb') as f:
-        model = pickle.load(f)
-
-    model_dict = dump(model)
-
-    with open('./test-data/jbc_model.json', 'w') as f:
-        json.dump(model_dict, f)
-
-    # use yaml.load instead of json.load to avoid unicode in python 2
-    with open('./test-data/jbc_model.json', 'r') as f:
-        new_dict = yaml.load(f)
-
-    re_model = load(new_dict)
