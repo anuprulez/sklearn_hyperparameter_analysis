@@ -72,7 +72,7 @@ class SerializeClass:
         """
         print(model)
         se_model = jsonpickler.dump(model)
-        #print(se_model)
+        print(se_model)
         print("--------------")
         h5file = h5py.File(self.model_file, 'w')
         def recursive_save_model(h5file_obj, dictionary):
@@ -101,11 +101,11 @@ class SerializeClass:
         """
         Convert to hdf5
         """
-        clf = SVC(degree=5)
+        clf = SVC(C=3.0, kernel='poly', degree=5)
         #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression()
-        clf = GaussianNB()
-        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        #clf = GaussianNB()
+        clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
         #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
         #clf = GradientBoostingClassifier(n_estimators=1)
@@ -167,11 +167,11 @@ class DeserializeClass:
                         continue
             return model_obj
         reconstructed_model = recursive_load_model(h5file, model_obj)
-        #print(reconstructed_model)
+        print(reconstructed_model)
         unloaded_model = jsonpickler.load(reconstructed_model)
         print(unloaded_model)
         return unloaded_model
-        
+
 
 if __name__ == "__main__":
 
