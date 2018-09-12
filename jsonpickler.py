@@ -217,6 +217,7 @@ class DictToModel:
         dispatch = self.dispatch
 
         t = type(data)
+        #print(data, t)
         if t is dict:
             _op_ = data.get('_op_')
             if _op_:
@@ -230,6 +231,8 @@ class DictToModel:
         f = dispatch.get(t)
         if f:
             return f(self, data)
+        else:
+            return data
 
     dispatch = {}
 
@@ -291,7 +294,7 @@ class DictToModel:
         for k in _keys_:
             try:
                 v = data[k]
-            except KeyError:
+            except:
                 #json dumps int keys to str
                 v = data[str(k)]
             newdict[k] = self.load(v)
@@ -346,9 +349,10 @@ class DictToModel:
     def load_numpy_ndarray(self, data):
         _dtype_ = self.load( data.get('_dtype_') )
         _values_ = self.load( data.get('_values_') )
-        obj = numpy.array(_values_, dtype=_dtype_)
-        self.memoize(obj)
-        return obj
+        if _values_ is not None:
+            obj = numpy.array(_values_, dtype=_dtype_)
+            self.memoize(obj)
+            return obj
 
     dispatch['numpy_ndarray'] = load_numpy_ndarray
 

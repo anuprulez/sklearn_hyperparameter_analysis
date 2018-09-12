@@ -43,6 +43,7 @@ class SerializeClass:
         """
         Evaluate classifier
         """
+        print(classifier)
         predictions = classifier.predict(X_test)
         match = [1 for x,y in zip(predictions, y_test) if x == y]
         prediction = len(match) / float(len(predictions))
@@ -70,9 +71,9 @@ class SerializeClass:
         """
         Save the dictionary to hdf5 file
         """
-        print(model)
+        #print(model)
         se_model = jsonpickler.dump(model)
-        print(se_model)
+        #print(se_model)
         print("--------------")
         h5file = h5py.File(self.model_file, 'w')
         def recursive_save_model(h5file_obj, dictionary):
@@ -81,10 +82,19 @@ class SerializeClass:
                 try:
                     if type_name in ['ndarray']:
                         h5file_obj.create_dataset(model_key, (model_value.shape), data=model_value)
-                    elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'bool', 'list', 'None', 'NoneType']:
+                        '''elif type_name in ['list']:
+                        print(model_key,"-------------------------")
+                        for index, model_item in enumerate(model_value):
+                            print(model_key, type(model_item).__name__, model_item)
+                            if type(model_item).__name__ in ['dict']:
+                                grp = h5file_obj.create_group(model_key)
+                                recursive_save_model(grp, model_item)
+                            else:
+                                h5file_obj.create_dataset(model_key, data=json.dumps(model_value))'''
+                    elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'list', 'bool', 'None', 'NoneType']:
                         if model_key in ["_aslist_", "_keys_"]:
                             h5file_obj.create_dataset(model_key, data=json.dumps(model_value))
-                        elif type_name in ['None', 'NoneType']:
+                        if type_name in ['None', 'NoneType']:
                             h5file_obj.create_dataset(model_key, data=json.dumps(model_value))
                         else:
                             h5file_obj.create_dataset(model_key, data=model_value)
@@ -102,11 +112,11 @@ class SerializeClass:
         Convert to hdf5
         """
         clf = SVC(C=3.0, kernel='poly', degree=5)
-        #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
-        #clf = LinearRegression()
-        #clf = GaussianNB()
+        clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
+        clf = LinearRegression(fit_intercept=True, n_jobs=2)
+        clf = GaussianNB()
         clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
-        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
+        clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
         #clf = GradientBoostingClassifier(n_estimators=1)
         #clf = ExtraTreeClassifier()
@@ -142,6 +152,7 @@ class DeserializeClass:
         """
         Read the hdf5 file recursively
         """
+        print("================================================")
         print("Deserializing...")
         model_obj = dict()
         h5file = h5py.File(self.model_file, 'r')
@@ -167,9 +178,12 @@ class DeserializeClass:
                         continue
             return model_obj
         reconstructed_model = recursive_load_model(h5file, model_obj)
+        print("------------")
         print(reconstructed_model)
         unloaded_model = jsonpickler.load(reconstructed_model)
-        print(unloaded_model)
+        #print(unloaded_model)
+        print("------------")
+        #print(jsonpickler.dump(unloaded_model))
         return unloaded_model
 
 
@@ -181,9 +195,13 @@ if __name__ == "__main__":
     start_time = time.time()
     serialize_clf = SerializeClass()
     X_test, y_test, classifier = serialize_clf.serialize_class()
-    #se_classifier = jsonpickler.dump(classifier)
+    se_classifier = jsonpickler.dump(classifier)
     deserialize = DeserializeClass(serialize_clf.model_file)
     de_classifier = deserialize.load_model()
+    #shared_items = {k: reconstructed_model[k] for k in reconstructed_model if k in se_classifier and se_classifier[k] == reconstructed_model[k]}
+    #print(shared_items)
+    #unloaded_model_twice = jsonpickler.load(shared_items)
     serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
+    #serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
     print ("Program finished in %s seconds" % str( end_time - start_time ))
