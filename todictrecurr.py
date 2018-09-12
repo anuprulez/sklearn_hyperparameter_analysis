@@ -36,7 +36,7 @@ class SerializeClass:
     def __init__(self):
         """ Init method. """
         self.weights_file = "weights.h5"
-        self.filetypes = ['str', 'float', 'bool', 'NoneType', 'int', 'ndarray', 'tuple']
+        self.filetypes = ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'bool', 'ndarray']
 
     @classmethod
     def compute_prediction_score(self, classifier, X_test, y_test):
@@ -82,6 +82,7 @@ class SerializeClass:
             cls_dict = cls_object.__dict__
             for k, v in cls_dict.items():
                 recur_dict[k] = v
+
         if "__getstate__" in dir(cls_object):
             cls_object_states = cls_object.__getstate__()
             type_name = type(cls_object_states).__name__
@@ -102,11 +103,12 @@ class SerializeClass:
                                     self.recursive_dict(esmtr, recur_dict[key][str(index)])
                         elif key == "tree_":
                             state_items = dict()
-                            imp_attrs = [attr for attr in dir(val) if not attr.startswith("__") and not callable(getattr(val, attr))]
-                            for k, v in val.__class__.__dict__.items():
-                                if k in imp_attrs:
-                                    state_items[k] = eval("val." + k)
+                            tree_attrs = [attr for attr in dir(val) if not attr.startswith("__") and not callable(getattr(val, attr))]
                             states = val.__getstate__()
+                            for k, v in val.__class__.__dict__.items():
+                                if k in tree_attrs:
+                                    state_items[k] = eval("val." + k)
+                                    
                             for k, v in states.items():
                                 if k not in state_items:
                                     state_items[k] = v
@@ -116,12 +118,13 @@ class SerializeClass:
                             else:
                                 state_items["path"] = val.__class__.__module__
                             recur_dict[key] = state_items
-                        elif key == "estimators_features_":
+                        elif key == "estimators_features_": # Bagging classifier/regressor
                             recur_dict[key] = val
                         else:
                             self.recursive_dict(val, recur_dict[key])
                     else:
                         if type(val).__name__ is 'tuple':
+                            print(key, val)
                             try:
                                 val_getstate = val.__getstate__()
                                 recur_dict[key][val_getstate[0]] = val_getstate[1]
@@ -130,6 +133,7 @@ class SerializeClass:
                                 continue
                         else:
                             recur_dict[key] = val
+                            
         return recur_dict
         
     @classmethod
@@ -138,7 +142,7 @@ class SerializeClass:
         Save the dictionary to hdf5 file
         """
         h5file = h5py.File(self.weights_file, 'w')
-        print(dictionary)
+        #print(dictionary)
         def recursive_save(dictionary, h5file_obj):
             for key, value in dictionary.items():
                 type_name = type(value).__name__
@@ -162,7 +166,7 @@ class SerializeClass:
         """
         clf = SVC(C=3.0, kernel='poly', degree=5)
         clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
-        clf = LinearRegression()
+        #clf = LinearRegression()
         #clf = SVR()
         #clf = GaussianNB()
         #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
