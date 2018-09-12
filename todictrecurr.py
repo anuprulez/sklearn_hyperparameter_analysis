@@ -90,15 +90,16 @@ class SerializeClass:
                     if type(val).__name__ not in self.filetypes:
                         recur_dict[key] = dict()
                         if key == "estimators_":
-                            if "shape" in dir(val):
-                                recur_dict[key]["shape"] = val.shape
-                                estimators = val.flatten()
-                            else:
-                                recur_dict[key]["shape"] = len(val)
-                                estimators = val
-                            for index, esmtr in enumerate(estimators):
-                                recur_dict[key][str(index)] = dict()
-                                self.recursive_dict(esmtr, recur_dict[key][str(index)])
+                                recur_dict[key] = dict()
+                                if "shape" in dir(val):
+                                    recur_dict[key]["shape"] = val.shape
+                                    estimators = val.flatten()
+                                else:
+                                    recur_dict[key]["shape"] = len(val)
+                                    estimators = val
+                                for index, esmtr in enumerate(estimators):
+                                    recur_dict[key][str(index)] = dict()
+                                    self.recursive_dict(esmtr, recur_dict[key][str(index)])
                         elif key == "tree_":
                             state_items = dict()
                             imp_attrs = [attr for attr in dir(val) if not attr.startswith("__") and not callable(getattr(val, attr))]
@@ -118,9 +119,6 @@ class SerializeClass:
                         elif key == "estimators_features_":
                             recur_dict[key] = val
                         else:
-                            if key == "loss_":
-                                print(key, dir(val))
-                                print(val.__dict__)
                             self.recursive_dict(val, recur_dict[key])
                     else:
                         if type(val).__name__ is 'tuple':
@@ -131,20 +129,7 @@ class SerializeClass:
                             except:
                                 continue
                         else:
-                            if key == "estimators_":
-                                print(val.shape)
-                                recur_dict[key] = dict()
-                                if "shape" in dir(val):
-                                    recur_dict[key]["shape"] = val.shape
-                                    estimators = val.flatten()
-                                else:
-                                    recur_dict[key]["shape"] = len(val)
-                                    estimators = val
-                                for index, esmtr in enumerate(estimators):
-                                    recur_dict[key][str(index)] = dict()
-                                    self.recursive_dict(esmtr, recur_dict[key][str(index)])
-                            else:
-                                recur_dict[key] = val
+                            recur_dict[key] = val
         return recur_dict
         
     @classmethod
@@ -175,9 +160,9 @@ class SerializeClass:
         """
         Convert to hdf5
         """
-        #clf = SVC(C=3.0, kernel='poly', degree=5)
-        #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
-        #clf = LinearRegression()
+        clf = SVC(C=3.0, kernel='poly', degree=5)
+        clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
+        clf = LinearRegression()
         #clf = SVR()
         #clf = GaussianNB()
         #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
@@ -187,7 +172,7 @@ class SerializeClass:
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
-        clf = GradientBoostingClassifier(n_estimators=1)
+        #clf = GradientBoostingClassifier(n_estimators=1)
         #clf = GradientBoostingClassifier(n_estimators=1)
         
         #clf = AdaBoostClassifier()
@@ -222,6 +207,21 @@ class DeserializeClass:
         return classifier
         
     @classmethod
+    def get_class_info(self, file_obj, key=None):
+        """
+        Construct class object
+        """
+        cls_key = "class_name"
+        cls_path = "path"
+        if key is not None:
+            cls_key = key + "/class_name"
+            cls_path = key + "/path"
+        class_name = file_obj.get(cls_key).value
+        class_path = file_obj.get(cls_path).value
+        new_object = self.import_module(class_path, class_name)
+        return new_object
+        
+    @classmethod
     def deserialize_class(self):
         """
         Read the hdf5 file recursively
@@ -230,9 +230,7 @@ class DeserializeClass:
         exclude_items = ["class_name", "path", "shape", "_sklearn_version"]
         h5file = h5py.File(self.weights_file, 'r')
         def recursive_read(h5_obj):
-            cls_name = h5_obj.get("class_name").value
-            cls_path = h5_obj.get("path").value
-            classifier = self.import_module(cls_path, cls_name)
+            classifier = self.get_class_info(h5_obj)
             classifier_obj = classifier()
             for key in h5_obj.keys():
                 if h5_obj.get(key).__class__.__name__ == 'Group':
@@ -244,15 +242,11 @@ class DeserializeClass:
                             if estimator_key not in ['shape']:
                                 new_estimator_object = None
                                 estimator_dict = dict()
-                                class_name = estimator_item.get("class_name").value
-                                class_path = estimator_item.get("path").value
-                                estimator_object = self.import_module(class_path, class_name)
+                                estimator_object = self.get_class_info(estimator_item)
                                 new_estimator_object = estimator_object()
                                 for k, v in estimator_item.items():
                                     if k in ["tree_", "_tree"]:
-                                        tree_class_name = v.get("class_name").value
-                                        tree_class_path = v.get("path").value
-                                        new_tree_object = self.import_module(tree_class_path, tree_class_name)
+                                        new_tree_object = self.get_class_info(v)
                                         obj_dict = dict()
                                         for tree_item, tree_val in v.items():
                                             if tree_item not in exclude_items:
@@ -277,9 +271,7 @@ class DeserializeClass:
                             estimators = np.asarray(estimators_2d)
                         setattr(classifier_obj, key, estimators)
                     elif key in ["tree_", "_tree"]:
-                        tree_class_name = h5_obj.get(key + "/class_name").value
-                        tree_class_path = h5_obj.get(key + "/path").value
-                        new_tree_object = self.import_module(tree_class_path, tree_class_name)
+                        new_tree_object = self.get_class_info(h5_obj, key)
                         key_data = key + "/data"
                         if key_data in h5file:
                             data = h5_obj.get(key_data).value
@@ -294,18 +286,14 @@ class DeserializeClass:
                             obj_class.__setstate__(obj_dict)
                             setattr(classifier_obj, key, obj_class)
                     elif key in ["init_"]:
-                        cls_name = h5_obj.get(key + "/class_name").value
-                        cls_path = h5_obj.get(key + "/path").value
+                        init_obj = self.get_class_info(h5_obj, key)
                         priors = h5_obj.get(key + "/priors").value
-                        init_obj = self.import_module(cls_path, cls_name)
                         setattr(init_obj, "priors", priors)
                         setattr(classifier_obj, key, init_obj())
                     elif key in ["loss_"]:
                         print(key, h5_obj.get(key))
-                        cls_name = h5_obj.get(key + "/class_name").value
-                        cls_path = h5_obj.get(key + "/path").value
+                        loss_obj = self.get_class_info(h5_obj, key)
                         K = h5_obj.get(key + "/K").value
-                        loss_obj = self.import_module(cls_path, cls_name)
                         setattr(init_obj, "n_classes", K)
                         setattr(classifier_obj, key, init_obj())
                 else:
@@ -328,3 +316,4 @@ if __name__ == "__main__":
     serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
     print ("Program finished in %s seconds" % str( end_time - start_time ))
+
