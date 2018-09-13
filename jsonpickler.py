@@ -320,6 +320,7 @@ class DictToModel:
         """
         build object
         """
+        
         _func_ = data.get('_func_')
         func = self.load( _func_)
         assert callable(func)

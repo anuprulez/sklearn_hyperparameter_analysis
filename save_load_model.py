@@ -67,13 +67,44 @@ class SerializeClass:
         return classifier, X_test, y_test, X_train
         
     @classmethod
+    def serialize_class(self):
+        """
+        Convert to hdf5
+        """
+        clf = SVC(C=3.0, kernel='poly', degree=5)
+        #clf = SVR()
+        #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
+        #clf = LinearRegression(fit_intercept=True, n_jobs=2)
+        #clf = GaussianNB()
+        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
+        #clf = RadiusNeighborsClassifier()
+        #clf = GradientBoostingClassifier(n_estimators=100)
+        #clf = ExtraTreeClassifier()
+        #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
+        #clf = DecisionTreeRegressor()
+        #clf = ExtraTreeRegressor()
+        #clf = GradientBoostingClassifier(n_estimators=10)
+        clf = AdaBoostClassifier(n_estimators=2)
+        #clf = AdaBoostRegressor()
+        #clf = BaggingClassifier()
+        #clf = BaggingRegressor()
+        #clf = ExtraTreesClassifier(n_estimators=1)
+        #clf = ExtraTreesRegressor()
+        #clf = RandomForestClassifier()
+        classifier, X_test, y_test, X = self.train_model(clf)
+        print("Serializing...")
+        self.save_model(classifier)
+        
+        return X_test, y_test, classifier
+        
+    @classmethod
     def save_model(self, model):
         """
         Save the dictionary to hdf5 file
         """
         se_model = jsonpickler.dump(model)
         #print(se_model)
-        #print("--------------")
         h5file = h5py.File(self.model_file, 'w')
         def recursive_save_model(h5file_obj, dictionary):
             for model_key, model_value in dictionary.items():
@@ -85,6 +116,7 @@ class SerializeClass:
                         if len(model_value) > 0:
                             list_obj = all(isinstance(x, dict) for x in model_value)
                             if list_obj is False:
+                                
                                 h5file_obj.create_dataset(model_key, data=json.dumps(model_value))
                             else:
                                 for index, model_item in enumerate(model_value):
@@ -105,6 +137,8 @@ class SerializeClass:
                         else:
                             h5file_obj.create_dataset(model_key, data=model_value)
                     elif type_name in ['dict']:
+                        if model_key == '_func_':
+                            print(model_key, model_value)
                         if model_key in h5file_obj:
                             recursive_save_model(h5file_obj[model_key], model_value)
                         else:
@@ -114,40 +148,8 @@ class SerializeClass:
                     print(model_key, exp, model_value)
                     continue
         recursive_save_model(h5file, se_model)
-
-    @classmethod
-    def serialize_class(self):
-        """
-        Convert to hdf5
-        """
-        clf = SVC(C=3.0, kernel='poly', degree=5)
-        #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
-        #clf = LinearRegression(fit_intercept=True, n_jobs=2)
-        #clf = GaussianNB()
-        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
-        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
-        #clf = RadiusNeighborsClassifier()
-        #clf = GradientBoostingClassifier(n_estimators=100)
-        #clf = ExtraTreeClassifier()
-        #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
-        #clf = DecisionTreeRegressor()
-        #clf = ExtraTreeRegressor()
-        #clf = GradientBoostingClassifier(n_estimators=10)
+        print("--------------")
         
-        #clf = SVR()
-        #clf = AdaBoostClassifier()
-        #clf = AdaBoostRegressor()
-        #clf = BaggingClassifier()
-        #clf = BaggingRegressor()
-        #clf = ExtraTreesClassifier(n_estimators=1)
-        #clf = ExtraTreesRegressor()
-        #clf = RandomForestClassifier()
-        classifier, X_test, y_test, X = self.train_model(clf)
-        print("Serializing...")
-        self.save_model(classifier)
-        
-        return X_test, y_test, classifier
-
 
 class DeserializeClass:
 
@@ -184,7 +186,7 @@ class DeserializeClass:
                                             if type(v).__name__ == 'Dataset':
                                                 try:
                                                     list_dict[k] = json.loads(v.value)
-                                                except:
+                                                except Exception as exp:
                                                     list_dict[k] = v.value
                                             elif type(v).__name__ == 'Group':
                                                 recursive_list(k, file_obj, iter_model)
@@ -209,7 +211,7 @@ class DeserializeClass:
                         continue
             return model_obj
         reconstructed_model = recursive_load_model(h5file, model_obj)
-        #print(reconstructed_model)
+        print(reconstructed_model)
         unloaded_model = jsonpickler.load(reconstructed_model)
         return unloaded_model
 
