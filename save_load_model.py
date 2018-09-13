@@ -73,7 +73,7 @@ class SerializeClass:
         """
         #print(model)
         se_model = jsonpickler.dump(model)
-        #print(se_model)
+        print(se_model)
         print("--------------")
         h5file = h5py.File(self.model_file, 'w')
         def recursive_save_model(h5file_obj, dictionary):
@@ -82,27 +82,38 @@ class SerializeClass:
                 try:
                     if type_name in ['ndarray']:
                         h5file_obj.create_dataset(model_key, (model_value.shape), data=model_value)
-                        '''elif type_name in ['list']:
-                        print(model_key,"-------------------------")
-                        for index, model_item in enumerate(model_value):
-                            print(model_key, type(model_item).__name__, model_item)
-                            if type(model_item).__name__ in ['dict']:
-                                grp = h5file_obj.create_group(model_key)
-                                recursive_save_model(grp, model_item)
-                            else:
-                                h5file_obj.create_dataset(model_key, data=json.dumps(model_value))'''
-                    elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'list', 'bool', 'None', 'NoneType']:
-                        if model_key in ["_aslist_", "_keys_"]:
-                            h5file_obj.create_dataset(model_key, data=json.dumps(model_value))
+                    elif type_name in ['list']:
+                        if len(model_value) > 0:
+                            model_item = model_value[0]
+                            list_internal_type = type(model_item).__name__
+                            if list_internal_type in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'list', 'bool', 'None', 'NoneType']:
+                                h5file_obj.create_dataset(model_key, data=json.dumps(model_value))
+                            elif list_internal_type in ['dict']:
+                                for index, model_item in enumerate(model_value):
+                                    model_key_item = model_key + "/" + str(index)
+                                    if model_item is not None:
+                                        if model_key_item in h5file_obj:
+                                            recursive_save_model(model_key_item, model_item)
+                                        else:
+                                            group = h5file_obj.create_group(model_key_item)
+                                            recursive_save_model(group, model_item)
+                                    else:
+                                        h5file_obj.create_dataset(model_key_item, data=json.dumps(model_item))
+                        else:
+                            h5file_obj.create_dataset(model_key, data=model_value)
+                    elif type_name in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'bool', 'None', 'NoneType']:
                         if type_name in ['None', 'NoneType']:
                             h5file_obj.create_dataset(model_key, data=json.dumps(model_value))
                         else:
                             h5file_obj.create_dataset(model_key, data=model_value)
                     elif type_name in ['dict']:
-                        dict_group = h5file_obj.create_group(model_key)
-                        recursive_save_model(dict_group, model_value)
+                        if model_key in h5file_obj:
+                            recursive_save_model(h5file_obj[model_key], model_value)
+                        else:
+                            group = h5file_obj.create_group(model_key)
+                            recursive_save_model(group, model_value)
                 except Exception as exp:
-                    print(model_key, exp)
+                    print(model_key, exp, model_value)
                     continue
         recursive_save_model(h5file, se_model)
 
@@ -114,16 +125,16 @@ class SerializeClass:
         clf = SVC(C=3.0, kernel='poly', degree=5)
         clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         clf = LinearRegression(fit_intercept=True, n_jobs=2)
-        clf = GaussianNB()
-        clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
-        clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
+        #clf = GaussianNB()
+        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
         #clf = GradientBoostingClassifier(n_estimators=1)
-        #clf = ExtraTreeClassifier()
+        clf = ExtraTreeClassifier()
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
-        #clf = GradientBoostingClassifier(n_estimators=1)
+        clf = GradientBoostingClassifier(n_estimators=2)
         
         #clf = SVR()
         #clf = AdaBoostClassifier()
@@ -164,7 +175,9 @@ class DeserializeClass:
                 else:
                     try:
                         key_value = h5file_obj.get(key).value
-                        if key in ["_aslist_", "_keys_"]:
+                        #print(key, key_value)
+                        model_obj[key] = json.loads(key_value)
+                        '''if key in ["_aslist_", "_keys_"]:
                             model_obj[key] = json.loads(key_value)
                         elif key_value in ['null']:
                             model_obj[key] = json.loads(key_value)
@@ -172,9 +185,10 @@ class DeserializeClass:
                             if type(key_value).__name__ in ['ndarray']:
                                 model_obj[key] = key_value.tolist()
                             else:
-                                model_obj[key] = key_value
+                                model_obj[key] = key_value'''
                     except Exception as exp:
-                        print(key, exp)
+                        #print(key, exp)
+                        model_obj[key] = key_value
                         continue
             return model_obj
         reconstructed_model = recursive_load_model(h5file, model_obj)
@@ -182,9 +196,9 @@ class DeserializeClass:
         print(reconstructed_model)
         unloaded_model = jsonpickler.load(reconstructed_model)
         #print(unloaded_model)
-        print("------------")
+        #print("------------")
         #print(jsonpickler.dump(unloaded_model))
-        return unloaded_model
+        #return unloaded_model
 
 
 if __name__ == "__main__":
@@ -201,7 +215,8 @@ if __name__ == "__main__":
     #shared_items = {k: reconstructed_model[k] for k in reconstructed_model if k in se_classifier and se_classifier[k] == reconstructed_model[k]}
     #print(shared_items)
     #unloaded_model_twice = jsonpickler.load(shared_items)
-    serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
+    #serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     #serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
     print ("Program finished in %s seconds" % str( end_time - start_time ))
+
