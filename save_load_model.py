@@ -126,15 +126,15 @@ class SerializeClass:
         #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression(fit_intercept=True, n_jobs=2)
         #clf = GaussianNB()
-        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
-        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
+        clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
         #clf = GradientBoostingClassifier(n_estimators=1)
         #clf = ExtraTreeClassifier()
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
-        clf = GradientBoostingClassifier(n_estimators=10)
+        #clf = GradientBoostingClassifier(n_estimators=10)
         
         #clf = SVR()
         #clf = AdaBoostClassifier()
@@ -178,19 +178,22 @@ class DeserializeClass:
                         while True:
                             list_key_iter = key + '/' + str(counter)
                             if list_key_iter in h5file_obj:
-                                if h5file_obj.get(list_key_iter).__class__.__name__ == 'Group':
-                                    file_obj = h5file_obj.get(list_key_iter)
-                                    list_dict = dict()
-                                    for k, v in file_obj.items():
-                                        list_dict[k] = v.value
-                                    model_obj[key].append(list_dict)
-                                else:
-                                    model_obj[key].append(json.loads(h5file_obj[list_key_iter].value))
+                                def recursive_list(iter_key, file_obj, iter_model):
+                                    if file_obj.get(iter_key).__class__.__name__ == 'Group':
+                                        file_obj = file_obj.get(iter_key)
+                                        list_dict = dict()
+                                        for k, v in file_obj.items():
+                                            if type(v).__name__ == 'Dataset':
+                                                list_dict[k] = v.value
+                                            elif type(v).__name__ == 'Group':
+                                                recursive_list(k, file_obj, iter_model)
+                                        iter_model.append(list_dict)
+                                    else:
+                                        iter_model.append(json.loads(file_obj[iter_key].value))
+                                recursive_list(list_key_iter, h5file_obj, model_obj[key])
                             else:
                                 break
                             counter += 1   
-                        #list_item = h5file_obj[list_key].value
-                        #print("LIST ITEM:", list_item)
                     else:
                         recursive_load_model(h5file_obj[key], model_obj[key])
                 else:
@@ -209,7 +212,7 @@ class DeserializeClass:
         for key, val in reconstructed_model["_args_"]["_aslist_"].items():
             global_aslist.append(val)
         reconstructed_model["_args_"]["_aslist_"] = global_aslist'''
-        #print(reconstructed_model)
+        print(reconstructed_model)
         unloaded_model = jsonpickler.load(reconstructed_model)
         #print(unloaded_model)
         #print("------------")
@@ -235,4 +238,5 @@ if __name__ == "__main__":
     serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
     print ("Program finished in %s seconds" % str( end_time - start_time ))
+
 
