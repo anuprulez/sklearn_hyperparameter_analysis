@@ -217,7 +217,6 @@ class DictToModel:
         dispatch = self.dispatch
 
         t = type(data)
-        #print(data, t)
         if t is dict:
             _op_ = data.get('_op_')
             if _op_:

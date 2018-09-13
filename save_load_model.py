@@ -71,10 +71,9 @@ class SerializeClass:
         """
         Save the dictionary to hdf5 file
         """
-        #print(model)
         se_model = jsonpickler.dump(model)
         #print(se_model)
-        print("--------------")
+        #print("--------------")
         h5file = h5py.File(self.model_file, 'w')
         def recursive_save_model(h5file_obj, dictionary):
             for model_key, model_value in dictionary.items():
@@ -126,9 +125,9 @@ class SerializeClass:
         #clf = LinearRegression(fit_intercept=True, n_jobs=2)
         #clf = GaussianNB()
         #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
-        clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
+        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
-        clf = GradientBoostingClassifier(n_estimators=1)
+        #clf = GradientBoostingClassifier(n_estimators=100)
         #clf = ExtraTreeClassifier()
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
@@ -162,7 +161,7 @@ class DeserializeClass:
         """
         Read the hdf5 file recursively
         """
-        print("================================================")
+        #print("================================================")
         print("Deserializing...")
         model_obj = dict()
         h5file = h5py.File(self.model_file, 'r')
@@ -183,7 +182,10 @@ class DeserializeClass:
                                         list_dict = dict()
                                         for k, v in file_obj.items():
                                             if type(v).__name__ == 'Dataset':
-                                                list_dict[k] = v.value
+                                                try:
+                                                    list_dict[k] = json.loads(v.value)
+                                                except:
+                                                    list_dict[k] = v.value
                                             elif type(v).__name__ == 'Group':
                                                 recursive_list(k, file_obj, iter_model)
                                         iter_model.append(list_dict)
