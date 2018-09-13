@@ -73,7 +73,7 @@ class SerializeClass:
         """
         #print(model)
         se_model = jsonpickler.dump(model)
-        print(se_model)
+        #print(se_model)
         print("--------------")
         h5file = h5py.File(self.model_file, 'w')
         def recursive_save_model(h5file_obj, dictionary):
@@ -123,18 +123,18 @@ class SerializeClass:
         Convert to hdf5
         """
         clf = SVC(C=3.0, kernel='poly', degree=5)
-        clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
-        clf = LinearRegression(fit_intercept=True, n_jobs=2)
+        #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
+        #clf = LinearRegression(fit_intercept=True, n_jobs=2)
         #clf = GaussianNB()
         #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
         #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
         #clf = GradientBoostingClassifier(n_estimators=1)
-        clf = ExtraTreeClassifier()
+        #clf = ExtraTreeClassifier()
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
-        clf = GradientBoostingClassifier(n_estimators=2)
+        clf = GradientBoostingClassifier(n_estimators=10)
         
         #clf = SVR()
         #clf = AdaBoostClassifier()
@@ -171,7 +171,28 @@ class DeserializeClass:
             for key in h5file_obj.keys():
                 if h5file_obj.get(key).__class__.__name__ == 'Group':
                     model_obj[key] = dict()
-                    recursive_load_model(h5file_obj[key], model_obj[key])
+                    list_key = key + '/0'
+                    if list_key in h5file_obj:
+                        counter = 0
+                        model_obj[key] = list()
+                        while True:
+                            list_key_iter = key + '/' + str(counter)
+                            if list_key_iter in h5file_obj:
+                                if h5file_obj.get(list_key_iter).__class__.__name__ == 'Group':
+                                    file_obj = h5file_obj.get(list_key_iter)
+                                    list_dict = dict()
+                                    for k, v in file_obj.items():
+                                        list_dict[k] = v.value
+                                    model_obj[key].append(list_dict)
+                                else:
+                                    model_obj[key].append(json.loads(h5file_obj[list_key_iter].value))
+                            else:
+                                break
+                            counter += 1   
+                        #list_item = h5file_obj[list_key].value
+                        #print("LIST ITEM:", list_item)
+                    else:
+                        recursive_load_model(h5file_obj[key], model_obj[key])
                 else:
                     try:
                         key_value = h5file_obj.get(key).value
@@ -184,16 +205,16 @@ class DeserializeClass:
                         continue
             return model_obj
         reconstructed_model = recursive_load_model(h5file, model_obj)
-        global_aslist = list()
+        '''global_aslist = list()
         for key, val in reconstructed_model["_args_"]["_aslist_"].items():
             global_aslist.append(val)
-        reconstructed_model["_args_"]["_aslist_"] = global_aslist
-        print(reconstructed_model)
+        reconstructed_model["_args_"]["_aslist_"] = global_aslist'''
+        #print(reconstructed_model)
         unloaded_model = jsonpickler.load(reconstructed_model)
         #print(unloaded_model)
         #print("------------")
         #print(jsonpickler.dump(unloaded_model))
-        #return unloaded_model
+        return unloaded_model
 
 
 if __name__ == "__main__":
@@ -211,7 +232,7 @@ if __name__ == "__main__":
     #print(shared_items)
     #unloaded_model_twice = jsonpickler.load(shared_items)
     #serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
-    #serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
+    serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
     print ("Program finished in %s seconds" % str( end_time - start_time ))
 
