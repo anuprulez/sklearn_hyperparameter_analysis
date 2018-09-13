@@ -167,7 +167,7 @@ class DeserializeClass:
         print("Deserializing...")
         model_obj = dict()
         h5file = h5py.File(self.model_file, 'r')
-        def recursive_load_model(h5file_obj, model_obj):
+        def recursive_load_model(h5file_obj, model_obj, counter=0):
             for key in h5file_obj.keys():
                 if h5file_obj.get(key).__class__.__name__ == 'Group':
                     model_obj[key] = dict()
@@ -175,24 +175,19 @@ class DeserializeClass:
                 else:
                     try:
                         key_value = h5file_obj.get(key).value
-                        #print(key, key_value)
                         model_obj[key] = json.loads(key_value)
-                        '''if key in ["_aslist_", "_keys_"]:
-                            model_obj[key] = json.loads(key_value)
-                        elif key_value in ['null']:
-                            model_obj[key] = json.loads(key_value)
-                        else:
-                            if type(key_value).__name__ in ['ndarray']:
-                                model_obj[key] = key_value.tolist()
-                            else:
-                                model_obj[key] = key_value'''
                     except Exception as exp:
-                        #print(key, exp)
-                        model_obj[key] = key_value
+                        if type(key_value).__name__ in ['ndarray']:
+                            model_obj[key] = key_value.tolist()
+                        else:
+                            model_obj[key] = key_value
                         continue
             return model_obj
         reconstructed_model = recursive_load_model(h5file, model_obj)
-        print("------------")
+        global_aslist = list()
+        for key, val in reconstructed_model["_args_"]["_aslist_"].items():
+            global_aslist.append(val)
+        reconstructed_model["_args_"]["_aslist_"] = global_aslist
         print(reconstructed_model)
         unloaded_model = jsonpickler.load(reconstructed_model)
         #print(unloaded_model)
