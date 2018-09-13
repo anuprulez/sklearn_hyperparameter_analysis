@@ -84,11 +84,10 @@ class SerializeClass:
                         h5file_obj.create_dataset(model_key, (model_value.shape), data=model_value)
                     elif type_name in ['list']:
                         if len(model_value) > 0:
-                            model_item = model_value[0]
-                            list_internal_type = type(model_item).__name__
-                            if list_internal_type in ['int', 'int32', 'int64', 'float', 'float32', 'float64', 'str', 'tuple', 'list', 'bool', 'None', 'NoneType']:
+                            list_obj = all(isinstance(x, dict) for x in model_value)
+                            if list_obj is False:
                                 h5file_obj.create_dataset(model_key, data=json.dumps(model_value))
-                            elif list_internal_type in ['dict']:
+                            else:
                                 for index, model_item in enumerate(model_value):
                                     model_key_item = model_key + "/" + str(index)
                                     if model_item is not None:
@@ -126,10 +125,10 @@ class SerializeClass:
         #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression(fit_intercept=True, n_jobs=2)
         #clf = GaussianNB()
-        clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
         clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
-        #clf = GradientBoostingClassifier(n_estimators=1)
+        clf = GradientBoostingClassifier(n_estimators=1)
         #clf = ExtraTreeClassifier()
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
@@ -208,15 +207,8 @@ class DeserializeClass:
                         continue
             return model_obj
         reconstructed_model = recursive_load_model(h5file, model_obj)
-        '''global_aslist = list()
-        for key, val in reconstructed_model["_args_"]["_aslist_"].items():
-            global_aslist.append(val)
-        reconstructed_model["_args_"]["_aslist_"] = global_aslist'''
-        print(reconstructed_model)
+        #print(reconstructed_model)
         unloaded_model = jsonpickler.load(reconstructed_model)
-        #print(unloaded_model)
-        #print("------------")
-        #print(jsonpickler.dump(unloaded_model))
         return unloaded_model
 
 
@@ -231,10 +223,6 @@ if __name__ == "__main__":
     se_classifier = jsonpickler.dump(classifier)
     deserialize = DeserializeClass(serialize_clf.model_file)
     de_classifier = deserialize.load_model()
-    #shared_items = {k: reconstructed_model[k] for k in reconstructed_model if k in se_classifier and se_classifier[k] == reconstructed_model[k]}
-    #print(shared_items)
-    #unloaded_model_twice = jsonpickler.load(shared_items)
-    #serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
     print ("Program finished in %s seconds" % str( end_time - start_time ))
