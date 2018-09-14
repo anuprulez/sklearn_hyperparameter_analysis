@@ -80,9 +80,9 @@ class SerializeClass:
         clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
         clf = GradientBoostingClassifier(n_estimators=100)
-        #clf = ExtraTreeClassifier()
-        #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
-        #clf = DecisionTreeRegressor()
+        clf = ExtraTreeClassifier()
+        clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
+        clf = DecisionTreeRegressor()
         # clf = ExtraTreeRegressor()
         #clf = GradientBoostingClassifier(n_estimators=10)
         clf = AdaBoostClassifier(n_estimators=2)
@@ -116,7 +116,6 @@ class SerializeClass:
                         if len(model_value) > 0:
                             list_obj = all(isinstance(x, dict) for x in model_value)
                             if list_obj is False:
-                                
                                 h5file_obj.create_dataset(model_key, data=json.dumps(model_value))
                             else:
                                 for index, model_item in enumerate(model_value):
@@ -180,8 +179,68 @@ class DeserializeClass:
                         list_dict[key] = key_value
                 continue
         return list_dict
-
+        
     @classmethod
+    def load_model(self):
+        """
+        Read the hdf5 file recursively
+        """
+        print("Deserializing...")
+        model_obj = dict()
+        h5file = h5py.File(self.model_file, 'r')
+        counter = 0
+        list_dict = dict()
+        def recursive_load_model(h5file_obj, model_obj, list_dict={}, counter=0):
+            for key in h5file_obj.keys():
+                if h5file_obj.get(key).__class__.__name__ == 'Group':
+                    list_key = key + '/0'
+                    if list_key in h5file_obj:
+                        model_obj[key] = list()
+                        while True:
+                            list_key_iter = key + '/' + str(counter)
+                            if list_key_iter in h5file_obj:
+                                file_obj = h5file_obj[list_key_iter]
+                                for recurse_key in file_obj.keys():
+                                    if file_obj.get(recurse_key).__class__.__name__ == 'Group':
+                                        model_obj[recurse_key] = dict()
+                                        recursive_load_model(file_obj[recurse_key], model_obj[recurse_key], list_dict, counter)
+                                    else:
+                                        try:
+                                            key_value = file_obj.get(recurse_key).value
+                                            list_dict[recurse_key] = json.loads(key_value)
+                                        except Exception as exp:
+                                            if type(key_value).__name__ in ['ndarray']:
+                                                list_dict[recurse_key] = key_value.tolist()
+                                            else:
+                                                list_dict[recurse_key] = key_value
+                                            continue
+                                
+                                model_obj[key].append(list_dict)
+                            else:
+                                break
+                            counter += 1
+                            
+                    else:
+                        model_obj[key] = dict()
+                        recursive_load_model(h5file_obj[key], model_obj[key])
+                else:
+                    model_obj[key] = dict()
+                    try:
+                        key_value = h5file_obj.get(key).value
+                        model_obj[key] = json.loads(key_value)
+                    except Exception as exp:
+                        if type(key_value).__name__ in ['ndarray']:
+                            model_obj[key] = key_value.tolist()
+                        else:
+                            model_obj[key] = key_value
+                        continue
+            return model_obj
+        reconstructed_model = recursive_load_model(h5file, model_obj)
+        print(reconstructed_model)
+        #unloaded_model = jsonpickler.load(reconstructed_model)
+        #return unloaded_model
+
+    '''@classmethod
     def load_model(self):
         """
         Read the hdf5 file recursively
@@ -192,42 +251,49 @@ class DeserializeClass:
         def recursive_load_model(h5file_obj, model_obj, counter=0):
             for key in h5file_obj.keys():
                 if h5file_obj.get(key).__class__.__name__ == 'Group':
-                    model_obj[key] = dict()
                     list_key = key + '/0'
+                    counter = 0
+                    model_obj[key] = dict()
                     if list_key in h5file_obj:
-                        counter = 0
-                        model_obj[key] = list()
-                        while True:
-                            list_key_iter = key + '/' + str(counter)
-                            if list_key_iter in h5file_obj:
-                                def recurse_list_items(file_obj, list_dict):
-                                    for key in file_obj.keys():
-                                        if file_obj.get(key).__class__.__name__ == 'Group':
-                                            if str.isnumeric(key) is True:
+                        list_dict = dict()
+                        def recurse_list_items(file_obj, list_dict, counter):
+                            model_obj[key] = list()
+                            while True:
+                                list_key_iter = key + '/' + str(counter)
+                                if list_key_iter in h5file_obj:
+                                    for recurse_key in file_obj.keys():
+                                        if file_obj.get(recurse_key).__class__.__name__ == 'Group':
+                                            #print(key, file_obj.get(recurse_key))
+                                            if str.isnumeric(recurse_key) is True:
                                                 dict_key = list_dict
+                                                
                                             else:
-                                                list_dict[key] = dict()
-                                                dict_key = list_dict[key]
-                                            recurse_list_items(file_obj[key], dict_key)
+                                                list_dict[recurse_key] = dict()
+                                                dict_key = list_dict[recurse_key]
+                                            list_dict[recurse_key] = dict()
+                                            recursive_load_model(file_obj[recurse_key], list_dict, counter)
+                                            #recurse_list_items(file_obj[recurse_key], dict_key)
                                         else:
                                             try:
-                                                key_value = file_obj.get(key).value
-                                                list_dict[key] = json.loads(key_value)
+                                                key_value = file_obj.get(recurse_key).value
+                                                list_dict[recurse_key] = json.loads(key_value)
+                                                #print(key, key_value, file_obj.get(recurse_key))
                                             except Exception as exp:
                                                 if type(key_value).__name__ in ['ndarray']:
-                                                    list_dict[key] = key_value.tolist()
+                                                    list_dict[recurse_key] = key_value.tolist()
                                                 else:
-                                                    list_dict[key] = key_value
+                                                    list_dict[recurse_key] = key_value
+                                                #print(recurse_key, key_value, file_obj.get(recurse_key))
                                                 continue
-                                    return list_dict
-                                item_dict = recurse_list_items(h5file_obj[list_key_iter], {})
-                                model_obj[key].append(item_dict)
-                            else:
-                                break
-                            counter += 1
+                                else:
+                                    break
+                                counter += 1   
+                        item_dict = recurse_list_items(h5file_obj[key], list_dict, counter)
+                        model_obj[key].append(item_dict)
                     else:
                         recursive_load_model(h5file_obj[key], model_obj[key])
                 else:
+                    model_obj[key] = dict()
                     try:
                         key_value = h5file_obj.get(key).value
                         model_obj[key] = json.loads(key_value)
@@ -241,7 +307,7 @@ class DeserializeClass:
         reconstructed_model = recursive_load_model(h5file, model_obj)
         print(reconstructed_model)
         unloaded_model = jsonpickler.load(reconstructed_model)
-        return unloaded_model
+        return unloaded_model'''
 
 
 if __name__ == "__main__":
@@ -255,7 +321,7 @@ if __name__ == "__main__":
     se_classifier = jsonpickler.dump(classifier)
     deserialize = DeserializeClass(serialize_clf.model_file)
     de_classifier = deserialize.load_model()
-    serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
+    #serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
     print ("Program finished in %s seconds" % str( end_time - start_time ))
 
