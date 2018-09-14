@@ -79,19 +79,19 @@ class SerializeClass:
         clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
         clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
-        #clf = GradientBoostingClassifier(n_estimators=100)
-        #clf = ExtraTreeClassifier()
-        #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
-        #clf = DecisionTreeRegressor()
-        #clf = ExtraTreeRegressor()
-        #clf = GradientBoostingClassifier(n_estimators=10)
-        #clf = AdaBoostClassifier(n_estimators=100)
-        #clf = AdaBoostRegressor(n_estimators=100)
-        #clf = BaggingClassifier()
-        #clf = BaggingRegressor()
-        #clf = ExtraTreesClassifier(n_estimators=10)
-        #clf = ExtraTreesRegressor()
-        #clf = RandomForestClassifier(random_state=123, n_estimators=2)
+        clf = GradientBoostingClassifier(n_estimators=100)
+        clf = ExtraTreeClassifier()
+        clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
+        clf = DecisionTreeRegressor()
+        clf = ExtraTreeRegressor()
+        clf = GradientBoostingClassifier(n_estimators=10)
+        clf = AdaBoostClassifier(n_estimators=100)
+        clf = AdaBoostRegressor(n_estimators=100)
+        clf = BaggingClassifier()
+        clf = BaggingRegressor()
+        clf = ExtraTreesClassifier(n_estimators=10)
+        clf = ExtraTreesRegressor()
+        clf = RandomForestClassifier(random_state=123, n_estimators=2)
         classifier, X_test, y_test, X = self.train_model(clf)
         print("Serializing...")
         self.save_model(classifier)
@@ -104,13 +104,15 @@ class SerializeClass:
         Save the dictionary to hdf5 file
         """
         se_model = jsonpickler.dump(model)
-        #print(se_model)
+        print(se_model)
         h5file = h5py.File(self.model_file, 'w')
         def recursive_save_model(h5file_obj, dictionary):
             for model_key, model_value in dictionary.items():
                 type_name = type(model_value).__name__
                 try:
-                    if type_name in ['list']:
+                    if type_name in ['ndarray']:
+                        h5file_obj.create_dataset(model_key, (model_value.shape), data=model_value)
+                    elif type_name in ['list']:
                         if len(model_value) > 0:
                             list_obj = all(isinstance(x, dict) for x in model_value)
                             if list_obj is False:
@@ -158,7 +160,7 @@ class DeserializeClass:
     @classmethod
     def restore_list_in_model(self, model_object):
         """
-        Convert dict to list if there are numbers as keys 
+        Recurse list items
         """
         if isinstance(model_object, dict) is True:
             for key, value in model_object.items():
@@ -166,11 +168,13 @@ class DeserializeClass:
                     keys = value.keys()
                     all_keys_number = all(str.isnumeric(x) for x in keys)
                     if all_keys_number is True:
+                        print(key, value.keys())
                         res_list = list()
                         model_object[key] = list()
                         for k_lst, v_lst in value.items():
                             model_object[key].append(v_lst)
                 self.restore_list_in_model(value)
+                
         elif isinstance(model_object, list) is True:
             for k, v in enumerate(model_object):
                 self.restore_list_in_model(v)
@@ -188,6 +192,37 @@ class DeserializeClass:
                 if h5file_obj.get(key).__class__.__name__ == 'Group':
                     model_obj[key] = dict()
                     recursive_load_model(h5file_obj[key], model_obj[key])
+                    '''list_key = key + '/0'
+                    if list_key in h5file_obj:
+                        counter = 0
+                        model_obj[key] = list()
+                        while True:
+                            list_key_iter = key + '/' + str(counter)
+                            if list_key_iter in h5file_obj:
+                                intermediate_list = dict()
+                                def recurse_list_items(file_obj, list_dict):
+                                    for recurse_key in file_obj.keys():
+                                        if file_obj.get(recurse_key).__class__.__name__ == 'Group':
+                                            list_dict[recurse_key] = dict()
+                                            recurse_list_items(file_obj[recurse_key], list_dict[recurse_key])
+                                        else:
+                                            try:
+                                                key_value = file_obj.get(recurse_key).value
+                                                list_dict[recurse_key] = json.loads(key_value)
+                                            except Exception as exp:
+                                                if type(key_value).__name__ in ['ndarray']:
+                                                    list_dict[recurse_key] = key_value.tolist()
+                                                else:
+                                                    list_dict[recurse_key] = key_value
+                                                continue
+                                    return list_dict
+                                item_dict = recurse_list_items(h5file_obj[list_key_iter], {})
+                                model_obj[key].append(item_dict)
+                            else:
+                                break
+                            counter += 1'''
+                    #else:
+                        #recursive_load_model(h5file_obj[key], model_obj[key])
                 else:
                     try:
                         key_value = h5file_obj.get(key).value
