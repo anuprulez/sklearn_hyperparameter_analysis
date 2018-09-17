@@ -19,7 +19,7 @@ from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiT
 from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, ExtraTreeClassifier, ExtraTreeRegressor
-import xgboost
+from xgboost import XGBClassifier
 
 from sklearn import svm
 from sklearn.datasets import samples_generator
@@ -28,7 +28,14 @@ from sklearn.feature_selection import f_regression
 from sklearn.pipeline import Pipeline
 import importlib
 from deepdish import io
-import jsonpickler
+import jsonpickler as jsonpickler
+
+from sklearn import svm
+from sklearn.datasets import samples_generator
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import f_regression
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import GridSearchCV
 
 
 class SerializeClass:
@@ -64,7 +71,39 @@ class SerializeClass:
         # Fit and return the classifier
         classifier.fit(X_train, y_train)
         self.compute_prediction_score(classifier, X_test, y_test)
-        return classifier, X_test, y_test, X_train
+        return classifier, X_test, y_test
+        
+        
+    @classmethod
+    def get_pipeline(self):
+        """
+        Construct pipelines
+        """
+        #X, y = samples_generator.make_classification(n_informative=5, n_redundant=0, random_state=42)
+        # ANOVA SVM-C
+        anova_filter = SelectKBest(f_regression, k=5)
+        clf = svm.SVC(kernel='poly', degree=5)
+        anova_svm = Pipeline([('anova', anova_filter), ('svc', clf)])
+        anova_svm.set_params(anova__k=10, svc__C=.1)
+        return anova_svm
+        
+        #tuned_parameters = [{'kernel': ['rbf'], 'gamma': [1e-3, 1e-4],'C': [1, 10, 100, 1000]}, {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}]
+        '''tuned_parameters = {'kernel':('linear', 'rbf'), 'C':[1, 10]}
+        svm = SVC()
+        clf = GridSearchCV(svm, tuned_parameters)
+        return clf'''
+        # You can set the parameters using the names issued
+        # For instance, fit using a k of 10 in the SelectKBest
+        # and a parameter 'C' of the svm
+        #anova_svm.set_params(anova__k=10, svc__C=.1).fit(X, y)
+        #prediction = anova_svm.predict(X)
+        #anova_svm.score(X, y)                        
+
+        # getting the selected features chosen by anova_filter
+        #anova_svm.named_steps['anova'].get_support()
+        # Another way to get selected features chosen by anova_filter
+        #anova_svm.named_steps.anova.get_support()
+        #print anova_svm, X, y
         
     @classmethod
     def serialize_class(self):
@@ -76,27 +115,28 @@ class SerializeClass:
         clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression(fit_intercept=True, n_jobs=2)
         #clf = GaussianNB()
-        clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
-        clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
+        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        #clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
         #clf = GradientBoostingClassifier(n_estimators=100)
         #clf = ExtraTreeClassifier()
         #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
-        #clf = ExtraTreeRegressor()
+        clf = ExtraTreeRegressor()
         #clf = GradientBoostingClassifier(n_estimators=10)
-        #clf = AdaBoostClassifier(n_estimators=100)
+        clf = AdaBoostClassifier(n_estimators=100)
         #clf = AdaBoostRegressor(n_estimators=100)
-        #clf = BaggingClassifier()
-        #clf = BaggingRegressor()
-        #clf = ExtraTreesClassifier(n_estimators=10)
+        clf = BaggingClassifier()
+        clf = BaggingRegressor()
+        #clf = ExtraTreesClassifier(n_estimators=100)
         #clf = ExtraTreesRegressor()
-        #clf = RandomForestClassifier(random_state=123, n_estimators=2)
-        classifier, X_test, y_test, X = self.train_model(clf)
+        clf = RandomForestClassifier(random_state=123, n_estimators=100)
+        #clf = XGBClassifier()
+        #clf = self.get_pipeline()
+        classifier, X_test, y_test = self.train_model(clf)
         print("Serializing...")
-        self.save_model(classifier)
-        
-        return X_test, y_test, classifier
+        se_model = self.save_model(classifier)
+        return X_test, y_test, classifier, se_model
         
     @classmethod
     def save_model(self, model):
@@ -145,6 +185,7 @@ class SerializeClass:
                     print(model_key, exp, model_value)
                     continue
         recursive_save_model(h5file, se_model)
+        return se_model
         print("--------------------------------------------------------------------------")
         
 
@@ -166,14 +207,17 @@ class DeserializeClass:
                     keys = value.keys()
                     all_keys_number = all(str.isnumeric(x) for x in keys)
                     if all_keys_number is True:
+                        keys = [int(ky) for ky in keys]
                         res_list = list()
                         model_object[key] = list()
-                        for k_lst, v_lst in value.items():
-                            model_object[key].append(v_lst)
+                        
+                        for idx in range(len(keys)):
+                            model_object[key].append(value[str(idx)])
                 self.restore_list_in_model(value)
         elif isinstance(model_object, list) is True:
             for k, v in enumerate(model_object):
                 self.restore_list_in_model(v)
+        return model_object
 
     @classmethod
     def load_model(self):
@@ -200,13 +244,13 @@ class DeserializeClass:
                         continue
             return model_obj
         reconstructed_model = recursive_load_model(h5file, model_obj)
-        print(reconstructed_model)
-        print("--------------------------------------------------------------------------")
-        print('Restoring the list structure...')
-        self.restore_list_in_model(reconstructed_model)
-        print(reconstructed_model)
-        print("--------------------------------------------------------------------------")
-        unloaded_model = jsonpickler.load(reconstructed_model)
+        #print(reconstructed_model)
+        #print("--------------------------------------------------------------------------")
+        #print('Restoring the list structure...')
+        recons_model = self.restore_list_in_model(reconstructed_model)
+        #print(recons_model)
+        #print("--------------------------------------------------------------------------")'''
+        unloaded_model = jsonpickler.load(recons_model)
         return unloaded_model
 
 
@@ -217,7 +261,9 @@ if __name__ == "__main__":
         exit(1)
     start_time = time.time()
     serialize_clf = SerializeClass()
-    X_test, y_test, classifier = serialize_clf.serialize_class()
+    X_test, y_test, classifier, se_model = serialize_clf.serialize_class()
+    #de_model = jsonpickler.load(se_model)
+    #serialize_clf.compute_prediction_score(de_model, X_test, y_test)
     se_classifier = jsonpickler.dump(classifier)
     deserialize = DeserializeClass(serialize_clf.model_file)
     de_classifier = deserialize.load_model()
