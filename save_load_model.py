@@ -36,6 +36,10 @@ from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_regression
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV
+from sklearn.decomposition import PCA
+from sklearn.pipeline import make_pipeline
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.preprocessing import Binarizer
 
 
 class SerializeClass:
@@ -81,11 +85,11 @@ class SerializeClass:
         """
         #X, y = samples_generator.make_classification(n_informative=5, n_redundant=0, random_state=42)
         # ANOVA SVM-C
-        anova_filter = SelectKBest(f_regression, k=5)
+        '''anova_filter = SelectKBest(f_regression, k=5)
         clf = svm.SVC(kernel='poly', degree=5)
         anova_svm = Pipeline([('anova', anova_filter), ('svc', clf)])
         anova_svm.set_params(anova__k=10, svc__C=.1)
-        return anova_svm
+        return anova_svm'''
         
         #tuned_parameters = [{'kernel': ['rbf'], 'gamma': [1e-3, 1e-4],'C': [1, 10, 100, 1000]}, {'kernel': ['linear'], 'C': [1, 10, 100, 1000]}]
         '''tuned_parameters = {'kernel':('linear', 'rbf'), 'C':[1, 10]}
@@ -104,6 +108,9 @@ class SerializeClass:
         # Another way to get selected features chosen by anova_filter
         #anova_svm.named_steps.anova.get_support()
         #print anova_svm, X, y
+        #estimators = [('reduce_dim', PCA()), ('clf', SVC())]
+        #return Pipeline(estimators)
+        return make_pipeline(Binarizer(), MultinomialNB()) 
         
     @classmethod
     def serialize_class(self):
@@ -132,7 +139,7 @@ class SerializeClass:
         #clf = ExtraTreesRegressor()
         clf = RandomForestClassifier(random_state=123, n_estimators=100)
         #clf = XGBClassifier()
-        #clf = self.get_pipeline()
+        clf = self.get_pipeline()
         classifier, X_test, y_test = self.train_model(clf)
         print("Serializing...")
         se_model = self.save_model(classifier)
@@ -210,7 +217,6 @@ class DeserializeClass:
                         keys = [int(ky) for ky in keys]
                         res_list = list()
                         model_object[key] = list()
-                        
                         for idx in range(len(keys)):
                             model_object[key].append(value[str(idx)])
                 self.restore_list_in_model(value)
