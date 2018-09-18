@@ -108,7 +108,12 @@ class SerializeClass:
         #print anova_svm, X, y
         #estimators = [('reduce_dim', PCA()), ('clf', SVC())]
         #return Pipeline(estimators)
-        return make_pipeline(Binarizer(), MultinomialNB())
+        #return make_pipeline(Binarizer(), MultinomialNB())
+        estimators = [('reduce_dim', PCA()), ('clf', SVC())]
+        pipe = Pipeline(estimators)
+        param_grid = dict(reduce_dim__n_components=[2, 5, 10], clf__C=[0.1, 10, 100])
+        clf = GridSearchCV(pipe, param_grid=param_grid)
+        return clf
         
     @classmethod
     def serialize_class(self):
@@ -137,7 +142,7 @@ class SerializeClass:
         #clf = ExtraTreesRegressor()
         #clf = RandomForestClassifier(random_state=123, n_estimators=100)
         #clf = XGBClassifier()
-        #clf = self.get_pipeline()
+        clf = self.get_pipeline()
         classifier, X_test, y_test = self.train_model(clf)
         print("Serializing...")
         se_model = self.save_model(classifier)
@@ -244,7 +249,7 @@ class DeserializeClass:
                     try:
                         key_value = h5file_obj.get(key).value
                         reconstructed_model[key] = json.loads(key_value)
-                    except Exception as exp:
+                    except Exception:
                         if type(key_value).__name__ in ['ndarray']:
                             reconstructed_model[key] = key_value.tolist()
                         else:
@@ -264,8 +269,7 @@ if __name__ == "__main__":
     start_time = time.time()
     serialize_clf = SerializeClass()
     X_test, y_test, classifier = serialize_clf.serialize_class()
-    se_classifier = jsonpickler.dumpc(classifier)
-    deserialize = DeserializeClass(serialize_clf.model_file)
+    deserialize = DeserializeClass("model.h5")
     de_classifier = deserialize.load_model()
     serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
