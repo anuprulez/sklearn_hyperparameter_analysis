@@ -12,10 +12,14 @@ Functions:
 """
 
 import sys
+import six
 import types
 import numpy
 
 # reserved keys
+_PY_VERSION = '-cpython-'
+_OBJ = '-object-'
+_NP_VERSION = '-numpy-'
 _REDUCE = '-reduce-'
 _GLOBAL = '-global-'
 _FUNC = '--func-'
@@ -31,6 +35,7 @@ _DATATYPE = '-datatype-'
 _VALUE = '-value-'
 _TUPLE = '-tuple-'
 _SET = '-set-'
+_BYTES ='-bytes-'
 
 
 class JsonPicklerError(Exception):
@@ -57,6 +62,18 @@ class ModelToDict:
         assert id(obj) not in self.memo
         idx = len(self.memo)
         self.memo[id(obj)] = idx, obj
+
+    def dump(self, obj):
+        """
+        Main access of object save
+        """
+        py_version = sys.version.split(' ')[0]
+        retv = {_PY_VERSION: py_version}
+        np_version = sys.modules.get('numpy').__version__
+        if np_version:
+            retv[_NP_VERSION] = np_version
+        retv[_OBJ] = self.save(obj)
+        return retv
 
     def save(self, obj):
 
@@ -124,17 +141,25 @@ class ModelToDict:
     dispatch[type(None)] = save_primitive
     dispatch[bool] = save_primitive
     dispatch[int] = save_primitive
-    #dispatch[long] = save_primitive
+    if six.PY2:
+        dispatch[long] = save_primitive
     dispatch[float] = save_primitive
     dispatch[complex] = save_primitive
+
+    def save_bytes(self, obj):
+        self.memoize(obj)
+        return {_BYTES: obj.decode('utf-8')}
+
+    dispatch[bytes] = save_bytes
 
     def save_string(self, obj):
         self.memoize(obj)
         return obj
 
     dispatch[str] = save_string
-    #dispatch[unicode] = save_string
-    #dispatch[bytearray] = save_primitive
+
+    if six.PY2:
+        dispatch[unicode] = save_string
 
     def save_list(self, obj):
         return [self.save(e) for e in obj]
@@ -155,12 +180,11 @@ class ModelToDict:
 
     def save_dict(self, obj):
         newdict = {}
-        _keys = obj.keys()
-        #_keys.sort()
+        _keys = list(obj.keys())
+        _keys.sort()
         newdict[_KEYS] = _keys
         for k in _keys:
             newdict[k] = self.save(obj[k])
-        #self.memoize(obj)
         return newdict
 
     dispatch[dict] = save_dict
@@ -184,7 +208,6 @@ class ModelToDict:
         newdict = {}
         newdict[_DTYPE] = self.save(obj.dtype)
         newdict[_VALUES] = self.save(obj.tolist())
-        #self.memoize(obj)
         return {_NP_NDARRAY: newdict}
 
     dispatch[numpy.ndarray] = save_np_ndarray
@@ -193,7 +216,6 @@ class ModelToDict:
         newdict = {}
         newdict[_DATATYPE] = self.save( type(obj) )
         newdict[_VALUE] = self.save(obj.item())
-        #self.memoize(obj)
         return {_NP_DATATYPE: newdict}
 
     dispatch[numpy.bool_] = save_np_datatype
@@ -232,6 +254,9 @@ class DictToModel:
         self.memo[l] = obj
 
     def load(self, data):
+        return self.load_all(data[_OBJ])
+
+    def load_all(self, data):
         """
         The main method to generate an object from dict data
         """
@@ -241,6 +266,8 @@ class DictToModel:
         if t is dict:
             if _MEMO in data:
                 return self.memo[data[_MEMO]]
+            if _BYTES in data:
+                return self.load_bytes(data[_BYTES])
             if _REDUCE in data:
                 return self.load_reduce(data[_REDUCE])
             if _GLOBAL in data:
@@ -268,7 +295,8 @@ class DictToModel:
     dispatch[type(None)] = load_primitive
     dispatch[bool] = load_primitive
     dispatch[int] = load_primitive
-    #dispatch[long] = load_primitive
+    if six.PY2:
+        dispatch[long] = load_primitive
     dispatch[float] = load_primitive
     dispatch[complex] = load_primitive
 
@@ -287,21 +315,26 @@ class DictToModel:
         self.memoize(data)
         return data
 
-    #dispatch[unicode] = load_unicode
-    dispatch[str] = load_unicode
+    if six.PY2:
+        dispatch[unicode] = load_unicode
+
+    def load_bytes(self, data):
+        data = data.encode('utf-8')
+        self.memoize(data)
+        return data
 
     def load_list(self, data):
-        return [self.load(e) for e in data]
+        return [self.load_all(e) for e in data]
 
     dispatch[list] = load_list
 
     def load_tuple(self, data):
-        obj = self.load( data )
+        obj = self.load_all( data )
         #self.memoize(obj)
         return tuple(obj)
 
     def load_set(self, data):
-        obj = self.load( data )
+        obj = self.load_all( data )
         #self.memoize(obj)
         return set(obj)
 
@@ -314,7 +347,7 @@ class DictToModel:
             # JSON dumps non-string key to string
             except KeyError:
                 v = data[str(k)]
-            newdict[k] = self.load(v)
+            newdict[k] = self.load_all(v)
         #self.memoize( newdict )
         return newdict
 
@@ -335,11 +368,11 @@ class DictToModel:
         Build object
         """
         _func = data[_FUNC]
-        func = self.load( _func)
+        func = self.load_all( _func)
         assert callable(func), "%r" % func
 
         _args = data[_ARGS][_TUPLE]
-        args = tuple( self.load( _args) )
+        args = tuple( self.load_all( _args) )
 
         try:
             obj = args[0].__new__(args[0], * args)
@@ -348,7 +381,7 @@ class DictToModel:
 
         _state = data.get(_STATE)
         if _state:
-            state = self.load( _state)
+            state = self.load_all( _state)
             setstate = getattr(obj, "__setstate__", None)
             if setstate:
                 setstate(state)
@@ -361,91 +394,20 @@ class DictToModel:
         return obj
 
     def load_np_ndarray(self, data):
-        _dtype = self.load( data[_DTYPE] )
-        _values = self.load( data[_VALUES] )
+        _dtype = self.load_all( data[_DTYPE] )
+        _values = self.load_all( data[_VALUES] )
         obj = numpy.array(_values, dtype=_dtype)
-        #self.memoize(obj)
         return obj
 
     def load_np_datatype(self, data):
-        _datatype = self.load( data[_DATATYPE] )
-        _value = self.load( data[_VALUE] )
+        _datatype = self.load_all( data[_DATATYPE] )
+        _value = self.load_all( data[_VALUE] )
         obj = _datatype(_value)
-        #self.memoize(obj)
         return obj
 
 
-def dump(obj):
-    return  ModelToDict().save(obj)
+def dumpc(obj):
+    return  ModelToDict().dump(obj)
 
-def load(data):
+def loadc(data):
     return DictToModel().load(data)
-
-
-'''if __name__ == "__main__":
-    import ujson as json
-    import pickle
-    import time
-    import sklearn
-    import pprint
-    from sklearn import (cluster, decomposition, ensemble, feature_extraction, feature_selection,
-                    gaussian_process, kernel_approximation, kernel_ridge, linear_model,
-                    metrics, model_selection, naive_bayes, neighbors, pipeline, preprocessing,
-                    svm, linear_model, tree, discriminant_analysis)
-
-    if len(sys.argv) > 1:
-        test_model = sys.argv[1]
-    else:
-        test_model =  './test-data/grad_Boos_classifier.pickle'
-
-    print("Loading pickled test model...")
-    start_time = time.time()
-    with open(test_model, 'rb') as f:
-        model = pickle.load(f)
-    end_time = time.time()
-    print("(%s s)" % str(end_time - start_time) )
-
-    pickle0_file = test_model + '.pickle0'
-    print("\nDumping model using pickle protocol-0...")
-    start_time = time.time()
-    with open(pickle0_file, 'wb') as f:
-        pickle.dump(model, f)
-    end_time = time.time()
-    print("(%s s)" % str(end_time - start_time) )
-
-    print("\nLoading model using pickle protocol-0...")
-    start_time = time.time()
-    with open(pickle0_file, 'rb') as f:
-        pickle_model = pickle.load(f)
-    end_time = time.time()
-    print("(%s s)" % str(end_time - start_time) )
-
-    print("\nDumping object to dict...")
-    start_time = time.time()
-    model_dict = dumpc(model)
-    end_time = time.time()
-    print("(%s s)" % str(end_time - start_time) )
-
-    #pprint.pprint(model_dict)
-
-    json_file = test_model +'.json'
-    print("\nDumping dict data to JSON file...")
-    start_time = time.time()
-    with open(json_file, 'w') as f:
-        json.dump(model_dict, f, sort_keys=True, indent=2)
-    end_time = time.time()
-    print("(%s s)" % str(end_time - start_time) )
-
-    print("\nLoading data from JSON file...")
-    start_time = time.time()
-    with open(json_file, 'r') as f:
-        new_dict = json.load(f)
-    end_time = time.time()
-    print("(%s s)" % str(end_time - start_time) )
-
-    print("\nRe-build the model object...")
-    start_time = time.time()
-    re_model = loadc(new_dict)
-    end_time = time.time()
-    print("(%s s)" % str(end_time - start_time) )
-    print("%r" %re_model)'''
