@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC, LinearSVC, NuSVC, OneClassSVM, SVR
 from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, ExtraTreesClassifier, RandomForestClassifier, BaggingClassifier, BaggingRegressor, AdaBoostRegressor, \
     ExtraTreesRegressor
-from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiTaskLasso, ElasticNet, SGDClassifier, RidgeClassifier
+from sklearn.linear_model import LinearRegression, Ridge, RidgeCV, Lasso, MultiTaskLasso, ElasticNet, SGDClassifier, RidgeClassifier, SGDRegressor, LogisticRegressionCV
 from sklearn.neighbors import KNeighborsClassifier, RadiusNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB, BernoulliNB
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, ExtraTreeClassifier, ExtraTreeRegressor
@@ -125,24 +125,26 @@ class SerializeClass:
         #clf = LinearSVC(loss='hinge', tol=0.001, C=2.0)
         #clf = LinearRegression(fit_intercept=True, n_jobs=2)
         #clf = GaussianNB()
-        #clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        clf = SGDClassifier(loss='hinge', learning_rate='optimal', alpha=0.0001)
+        #clf = SGDRegressor(random_state=10)
+        #clf = LogisticRegressionCV()
         clf = KNeighborsClassifier(n_neighbors=6, weights='uniform', algorithm='ball_tree', leaf_size=32)
         #clf = RadiusNeighborsClassifier()
-        #clf = GradientBoostingClassifier(n_estimators=10)
-        #clf = ExtraTreeClassifier()
-        #clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=10)
+        clf = ExtraTreeClassifier()
+        clf = DecisionTreeClassifier(criterion='entropy', random_state=42)
         #clf = DecisionTreeRegressor()
         #clf = ExtraTreeRegressor()
         #clf = GradientBoostingClassifier(n_estimators=10)
-        #clf = AdaBoostClassifier(n_estimators=100)
+        clf = AdaBoostClassifier(n_estimators=100)
         #clf = AdaBoostRegressor(n_estimators=100)
         #clf = BaggingClassifier()
         #clf = BaggingRegressor()
-        #clf = ExtraTreesClassifier(n_estimators=10)
+        clf = ExtraTreesClassifier(n_estimators=10)
         #clf = ExtraTreesRegressor()
         #clf = RandomForestClassifier(random_state=123, n_estimators=100)
-        #clf = XGBClassifier()
-        clf = self.get_pipeline()
+        clf = XGBClassifier()
+        #clf = self.get_pipeline()
         classifier, X_test, y_test = self.train_model(clf)
         print("Serializing...")
         se_model = self.save_model(classifier)
@@ -165,7 +167,7 @@ class SerializeClass:
         """
         se_model = jsonpickler.dumpc(model)
         h5file = h5py.File(self.model_file, 'w')
-
+        #print(se_model)
         # nested method for recursion
         def recursive_save_model(h5file_obj, dictionary):
             for model_key, model_value in dictionary.items():
@@ -190,6 +192,8 @@ class SerializeClass:
                         else:
                             self.create_dataset(h5file_obj, model_key, model_value)
                     elif type_name in ['dict']:
+                        if isinstance(model_key, (int, np.int16, np.int32, np.int64)) is True:
+                            model_key = str(model_key)
                         if model_key in h5file_obj:
                             recursive_save_model(h5file_obj[model_key], model_value)
                         else:
@@ -197,7 +201,7 @@ class SerializeClass:
                             recursive_save_model(group, model_value)
                     else:
                         self.create_dataset(h5file_obj, model_key, model_value)
-                except Exception:
+                except Exception as exp:
                     continue
         recursive_save_model(h5file, se_model)
 
@@ -258,6 +262,7 @@ class DeserializeClass:
         recursive_load_model(h5file, reconstructed_model)
         print('Restoring the list structure...')
         self.restore_list_in_model(reconstructed_model)
+        #print(reconstructed_model)
         return jsonpickler.loadc(reconstructed_model)
 
 
@@ -269,7 +274,7 @@ if __name__ == "__main__":
     start_time = time.time()
     serialize_clf = SerializeClass()
     X_test, y_test, classifier = serialize_clf.serialize_class()
-    deserialize = DeserializeClass("model.h5")
+    deserialize = DeserializeClass(serialize_clf.model_file)
     de_classifier = deserialize.load_model()
     serialize_clf.compute_prediction_score(de_classifier, X_test, y_test)
     end_time = time.time()
